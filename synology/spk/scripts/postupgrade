@@ -4,13 +4,37 @@ ROOT=/var/packages/WorkBridgeRelay
 VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
 TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
 CONFIG_FILE="$VAR/workbridge-relay.json"
+fail() {
+    printf '%s\n' "WorkBridgeRelay upgrade: $*" >&2
+    exit 1
+}
+[ ! -L "$VAR" ] || fail "package state directory is a symlink"
+if [ -e "$VAR" ]; then
+    [ -d "$VAR" ] || fail "package state path is not a directory"
+fi
+for path in "$CONFIG_FILE" "$VAR/tunnel-id" "$VAR/runtime-api-key"; do
+    [ ! -L "$path" ] || fail "package state file is a symlink"
+    if [ -e "$path" ]; then
+        [ -f "$path" ] || fail "package state path is not a regular file"
+    fi
+done
+[ -f "$TARGET/etc/workbridge-relay.json" ] && [ ! -L "$TARGET/etc/workbridge-relay.json" ] || fail "packaged default config missing or unsafe"
 mkdir -p "$VAR"
 chmod 700 "$VAR"
 umask 077
+TMP_CONFIG=
+cleanup() {
+    [ -z "$TMP_CONFIG" ] || rm -f "$TMP_CONFIG"
+}
+trap cleanup 0
+trap 'exit 1' 1 2 3 15
+
 if [ ! -e "$CONFIG_FILE" ]; then
-    cp "$TARGET/etc/workbridge-relay.json" "$CONFIG_FILE.new"
-    chmod 600 "$CONFIG_FILE.new"
-    mv "$CONFIG_FILE.new" "$CONFIG_FILE"
+    TMP_CONFIG=$(mktemp "$VAR/.workbridge-relay.XXXXXX") || fail "cannot stage config"
+    cat "$TARGET/etc/workbridge-relay.json" > "$TMP_CONFIG"
+    chmod 600 "$TMP_CONFIG"
+    mv -f "$TMP_CONFIG" "$CONFIG_FILE"
+    TMP_CONFIG=
 fi
 chmod 600 "$CONFIG_FILE"
 exit 0

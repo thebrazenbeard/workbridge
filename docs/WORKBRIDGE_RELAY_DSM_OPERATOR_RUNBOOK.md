@@ -43,3 +43,16 @@ Synology lifecycle: https://help.synology.com/developer-guide/synology_package/s
 Synology privileges: https://help.synology.com/developer-guide/privilege/privilege_config.html
 Synology unit: https://help.synology.com/developer-guide/resource_acquisition/systemd_user_unit.html
 OpenAI client: https://github.com/openai/tunnel-client/blob/a390c168ff1b2d14e73a95991c186c6aba3ff5a0/docs/configuration.md
+
+## Installer/upgrade filesystem safety
+The DSM postinst/postupgrade scripts reject symbolic links for package-managed
+state and its credential/config file targets. New files use unpredictable,
+exclusive mktemp names with umask 077 and trap cleanup on failure; configuration
+is staged before moving credentials into place. An upgrade preserves existing
+operator configuration and secrets rather than silently rotating credentials.
+Credential files are replaced individually; **the pair is not transactionally
+atomic if an unexpected failure occurs between renames**. If an installation
+fails mid-commit, stop and verify the intended tunnel ID and key pair using a
+private operator channel before restarting; never print secrets into a ticket,
+CI log, or chat. These protections are tested in Linux shell fixtures and do
+not substitute for real DSM installation/permissions verification.

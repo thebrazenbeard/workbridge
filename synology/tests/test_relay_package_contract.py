@@ -108,6 +108,14 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertIn('chmod 600 "$TUNNEL_ID_FILE"',postinst)
         self.assertIn('chmod 600 "$API_KEY_FILE"',postinst)
         self.assertNotIn('echo $API_KEY',postinst)
+        self.assertIn('mktemp "$VAR/.tunnel-id.XXXXXX"', postinst)
+        self.assertIn('mktemp "$VAR/.runtime-api-key.XXXXXX"', postinst)
+        self.assertIn('trap cleanup 0', postinst)
+        self.assertIn('[ ! -L "$path" ]', postinst)
+        self.assertIn('[ ! -L "$path" ]', postupgrade)
+        self.assertIn('trap cleanup 0', postupgrade)
+        self.assertNotIn('"$TUNNEL_ID_FILE.new"', postinst)
+        self.assertNotIn('"$API_KEY_FILE.new"', postinst)
 
     def test_pinned_components(self):
         bindings=json.loads((SPK/"component-bindings.json").read_text())
