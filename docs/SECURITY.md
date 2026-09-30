@@ -63,15 +63,17 @@ Each executable grant contains:
 
 - an operator-chosen stable name;
 - an absolute executable path;
-- an exact lowercase SHA-256.
+- an exact lowercase SHA-256;
+- an explicit `allow_arguments` authority bit, defaulting to false.
 
 At startup WorkBridge resolves the path, verifies it is a regular file, and hashes it.
 Immediately before execution it resolves and hashes the file again. Immediately after
 execution it verifies the hash again.
 
-The MCP caller supplies only the grant name and literal argument array. WorkBridge does
-not route process requests through a shell. Child processes receive a reduced environment,
-not the complete server environment.
+The MCP caller supplies the grant name. Caller-supplied arguments are rejected unless
+that exact executable grant sets `allow_arguments=true`. When authorized, the literal
+argument array is passed directly; WorkBridge does not route process requests through a
+shell. Child processes receive a reduced environment, not the complete server environment.
 
 Working directories are separately bounded by an `os.Root` policy.
 Runtime, output bytes, argument count, and aggregate argument bytes are bounded.

@@ -23,14 +23,14 @@
   "package": {
     "arch": "armada38x",
     "id": "WorkBridgeRelay",
-    "version": "0.1.0-0002"
+    "version": "0.1.0-0003"
   },
   "schema": "WORKBRIDGE_RELAY_BINDINGS_V1",
   "workbridge_mcp": {
     "build_flags": "-trimpath -buildvcs=false -ldflags=-buildid=",
-    "commit": "4a34fdcaeb873e2316d2e61e78c2e204138fb8cb",
+    "commit": "0344d14551ea7e5a4309adb782e3f8b48c7b8b8c",
     "go": "1.25.12",
-    "qualified_binary_sha256": "3d930a0ab833270e9733091f300ef8fecbfb524c9a49ee44fb5de2fbceebf6ee",
+    "qualified_binary_sha256": "ba4af8e0f91cf6cbaa56956cda0e525209a40a8dc825577640720c7fb07326e8",
     "repository": "thebrazenbeard/workbridge",
     "target": "linux/arm GOARM=7"
   }

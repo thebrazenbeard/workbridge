@@ -25,9 +25,10 @@ type Limits struct {
 }
 
 type ExecutableGrant struct {
-	Name   string `json:"name"`
-	Path   string `json:"path"`
-	SHA256 string `json:"sha256"`
+	Name           string `json:"name"`
+	Path           string `json:"path"`
+	SHA256         string `json:"sha256"`
+	AllowArguments bool   `json:"allow_arguments,omitempty"`
 }
 
 type ProcessConfig struct {

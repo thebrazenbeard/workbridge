@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "synology"
-VERSION = "0.1.0-0002"
+VERSION = "0.1.0-0003"
 ARCH = "armada38x"
 
 

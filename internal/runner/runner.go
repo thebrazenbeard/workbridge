@@ -19,8 +19,9 @@ import (
 )
 
 type grant struct {
-	path   string
-	sha256 string
+	path           string
+	sha256         string
+	allowArguments bool
 }
 
 type Runner struct {
@@ -90,7 +91,11 @@ func New(cfg config.ProcessConfig) (*Runner, error) {
 		if digest != item.SHA256 {
 			return fail(fmt.Errorf("executable %q sha256 mismatch", item.Name))
 		}
-		r.grants[item.Name] = grant{path: filepath.Clean(resolved), sha256: digest}
+		r.grants[item.Name] = grant{
+			path: filepath.Clean(resolved),
+			sha256: digest,
+			allowArguments: item.AllowArguments,
+		}
 	}
 	return r, nil
 }
@@ -124,6 +129,9 @@ func (r *Runner) Run(ctx context.Context, name string, args []string, workingDir
 	g, ok := r.grants[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown executable grant %q", name)
+	}
+	if len(args) > 0 && !g.allowArguments {
+		return nil, fmt.Errorf("executable grant %q does not allow caller-supplied arguments", name)
 	}
 	if len(args) > r.maxArgs {
 		return nil, fmt.Errorf("argument count %d exceeds limit %d", len(args), r.maxArgs)
