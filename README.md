@@ -1,7 +1,12 @@
 # WorkBridge Relay for Synology
 
 This repository builds one standalone Synology DSM package:
-WorkBridgeRelay-0.1.0-0001-armada38x.spk.
+WorkBridgeRelay-0.1.0-0002-armada38x.spk.
+
+Revision 0002 is a source-level upgrade candidate, not proof that the
+operator-installed 0001 package has changed. See
+docs/WORKBRIDGE_RELAY_0002_READINESS_AND_REVIEW_20260930.md
+for source binding, no-overwrite security limitations and upgrade gates.
 
 It packages the bounded WorkBridge MCP server and a pinned OpenAI Secure MCP
 Tunnel runtime. The tunnel connects outbound; there is no public inbound

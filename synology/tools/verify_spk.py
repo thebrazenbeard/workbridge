@@ -101,7 +101,7 @@ def main() -> int:
     if b"SOURCE-AVAILABLE PROPRIETARY LICENSE" not in outer["LICENSE"]:
         raise ValueError("SPK must carry the source license")
     info = outer["INFO"].decode("utf-8")
-    for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0001"', 'arch="armada38x"'):
+    for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0002"', 'arch="armada38x"'):
         if required not in info:
             raise ValueError(f"INFO contract missing {required}")
 
@@ -148,7 +148,7 @@ def main() -> int:
     if provenance.get("schema") != "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1":
         raise ValueError("provenance schema mismatch")
     bindings = provenance["component_bindings"]
-    if bindings["workbridge_mcp"]["commit"] != "b650b50abcbe1f81c653e1c2d305849b5d494489":
+    if bindings["workbridge_mcp"]["commit"] != "4a34fdcaeb873e2316d2e61e78c2e204138fb8cb":
         raise ValueError("WorkBridge source binding mismatch")
     if bindings["openai_tunnel_client"]["commit"] != "a390c168ff1b2d14e73a95991c186c6aba3ff5a0":
         raise ValueError("tunnel-client source binding mismatch")

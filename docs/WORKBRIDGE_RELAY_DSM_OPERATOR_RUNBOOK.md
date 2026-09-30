@@ -81,3 +81,12 @@ not substitute for real DSM installation/permissions verification.
 
 Synology's package FHS contract:
 https://help.synology.com/developer-guide/integrate_dsm/fhs.html
+
+
+## Future 0.1.0-0002 candidate
+
+Revision 0002 fixes a latent destination replacement race in
+workspace_move, restricted to regular files and implemented using a hard
+link plus explicit unlink. No multi-path transaction guarantee is claimed.
+The 0001 package is unchanged until Patrick separately authorizes an upgrade.
+See docs/WORKBRIDGE_RELAY_0002_READINESS_AND_REVIEW_20260930.md.
