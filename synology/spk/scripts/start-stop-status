@@ -2,16 +2,15 @@
 set -eu
 
 CTL=/usr/syno/bin/synosystemctl
-UNIT=pkguser-workbridgemedia.service
-ROOT=/var/packages/WorkBridgeMedia
+UNIT=pkguser-workbridgerelay.service
+ROOT=/var/packages/WorkBridgeRelay
 VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
 
 case "${1:-}" in
   prestart)
-    [ -d "$ROOT/shares/Media/Library" ] || exit 1
     [ -r "$VAR/tunnel-id" ] || exit 1
     [ -r "$VAR/runtime-api-key" ] || exit 1
-    [ -r "$VAR/workbridge-media.json" ] || exit 1
+    [ -r "$VAR/workbridge-relay.json" ] || exit 1
     ;;
   start)
     "$CTL" start "$UNIT"

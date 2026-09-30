@@ -1,0 +1,12 @@
+[Unit]
+Description=WorkBridgeRelay Secure MCP Tunnel
+
+[Service]
+Type=simple
+ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target

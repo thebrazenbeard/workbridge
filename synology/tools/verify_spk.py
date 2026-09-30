@@ -9,7 +9,7 @@ import struct
 import tarfile
 from pathlib import Path, PurePosixPath
 
-MEDIA_ROOT = "/var/packages/WorkBridgeMedia/shares/Media/Library"
+
 
 
 def sha256(data: bytes) -> str:
@@ -68,7 +68,7 @@ def main() -> int:
         "PACKAGE_ICON_256.PNG",
         "conf/privilege",
         "conf/resource",
-        "conf/systemd/pkguser-workbridgemedia.service",
+        "conf/systemd/pkguser-workbridgerelay.service",
         "WIZARD_UIFILES/install_uifile",
         "scripts/preinst",
         "scripts/postinst",
@@ -79,9 +79,8 @@ def main() -> int:
         "scripts/start-stop-status",
         "package.tgz",
     }
-    missing_outer = sorted(required_outer - set(outer))
-    if missing_outer:
-        raise ValueError(f"missing outer SPK members: {missing_outer}")
+    if set(outer) != required_outer:
+        raise ValueError(f"SPK outer member mismatch missing={sorted(required_outer-set(outer))} unexpected={sorted(set(outer)-required_outer)}")
     for script in (
         "scripts/preinst",
         "scripts/postinst",
@@ -95,20 +94,19 @@ def main() -> int:
             raise ValueError(f"lifecycle script is not executable: {script}")
 
     info = outer["INFO"].decode("utf-8")
-    for required in ('package="WorkBridgeMedia"', 'version="0.1.0-0001"', 'arch="armada38x"'):
+    for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0001"', 'arch="armada38x"'):
         if required not in info:
             raise ValueError(f"INFO contract missing {required}")
 
     resource = json.loads(outer["conf/resource"])
-    expected_shares = [{"name": "Media", "permission": {"rw": ["WorkBridgeMedia"]}}]
-    if resource.get("data-share", {}).get("shares") != expected_shares:
-        raise ValueError("DSM share authority differs from Media-only contract")
+    if resource != {"systemd-user-unit": {}}:
+        raise ValueError("DSM resource contract must not grant NAS share access")
 
     privilege = json.loads(outer["conf/privilege"])
     if privilege != {
         "defaults": {"run-as": "package"},
-        "username": "WorkBridgeMedia",
-        "groupname": "WorkBridgeMedia",
+        "username": "WorkBridgeRelay",
+        "groupname": "WorkBridgeRelay",
     }:
         raise ValueError("package privilege contract mismatch")
 
@@ -118,17 +116,16 @@ def main() -> int:
     required_inner = {
         "bin/workbridge-mcp",
         "bin/tunnel-client-runtime",
-        "bin/run-workbridge-media.sh",
-        "etc/workbridge-media.json",
+        "bin/run-workbridge-relay.sh",
+        "etc/workbridge-relay.json",
         "provenance/component-bindings.json",
         "third_party/openai-tunnel-client-LICENSE",
         "third_party/openai-tunnel-client-NOTICE",
     }
-    missing_inner = sorted(required_inner - set(inner))
-    if missing_inner:
-        raise ValueError(f"missing package payload members: {missing_inner}")
+    if set(inner) != required_inner:
+        raise ValueError(f"SPK inner member mismatch missing={sorted(required_inner-set(inner))} unexpected={sorted(set(inner)-required_inner)}")
 
-    for name in ("bin/workbridge-mcp", "bin/tunnel-client-runtime", "bin/run-workbridge-media.sh"):
+    for name in ("bin/workbridge-mcp", "bin/tunnel-client-runtime", "bin/run-workbridge-relay.sh"):
         if inner_modes[name] & 0o111 == 0:
             raise ValueError(f"required executable mode missing: {name}")
 
@@ -136,10 +133,10 @@ def main() -> int:
     require_armv7_elf(inner["bin/tunnel-client-runtime"], "tunnel-client-runtime")
 
     provenance = json.loads(inner["provenance/component-bindings.json"])
-    if provenance.get("schema") != "WORKBRIDGE_MEDIA_RUNTIME_PROVENANCE_V1":
+    if provenance.get("schema") != "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1":
         raise ValueError("provenance schema mismatch")
     bindings = provenance["component_bindings"]
-    if bindings["workbridge_mcp"]["commit"] != "8e0e9831adc2a6a8d41145c71c8bd64d9a489c77":
+    if bindings["workbridge_mcp"]["commit"] != "b650b50abcbe1f81c653e1c2d305849b5d494489":
         raise ValueError("WorkBridge source binding mismatch")
     if bindings["openai_tunnel_client"]["commit"] != "a390c168ff1b2d14e73a95991c186c6aba3ff5a0":
         raise ValueError("tunnel-client source binding mismatch")
@@ -155,19 +152,23 @@ def main() -> int:
     if provenance["artifacts"]["tunnel_client_runtime_sha256"] != tunnel_hash:
         raise ValueError("tunnel-client provenance hash mismatch")
 
-    config = json.loads(inner["etc/workbridge-media.json"])
-    if config.get("read_roots") != [MEDIA_ROOT] or config.get("write_roots") != [MEDIA_ROOT]:
-        raise ValueError("WorkBridge root authority mismatch")
-    if config.get("process", {}).get("enabled") is not False:
-        raise ValueError("process execution must remain disabled")
+    config = json.loads(inner["etc/workbridge-relay.json"])
+    if config.get("read_roots") != [] or config.get("write_roots") != []:
+        raise ValueError("default WorkBridge roots must be empty")
+    if config.get("process", {}).get("enabled") is not False or config.get("process", {}).get("allowed_executables") != []:
+        raise ValueError("default process execution must remain disabled")
+    if config.get("http", {}).get("listen") != "127.0.0.1:8765":
+        raise ValueError("default backend must bind loopback only")
 
-    launcher = inner["bin/run-workbridge-media.sh"].decode("utf-8")
+    launcher = inner["bin/run-workbridge-relay.sh"].decode("utf-8")
     if "--mcp.command" not in launcher or "--mcp.server-url" in launcher:
         raise ValueError("launcher must use stdio WorkBridge transport")
-    if "127.0.0.1:17448" not in launcher:
+    if "127.0.0.1:17449" not in launcher:
         raise ValueError("health listener must remain loopback")
     if "file:$API_KEY_FILE" not in launcher:
         raise ValueError("runtime secret must be file-referenced")
+    if "shares/" in launcher or "Media" in launcher:
+        raise ValueError("relay launcher must not select an arbitrary NAS share")
 
     if not inner["third_party/openai-tunnel-client-LICENSE"].strip():
         raise ValueError("OpenAI tunnel-client LICENSE missing")
@@ -175,7 +176,7 @@ def main() -> int:
         raise ValueError("OpenAI tunnel-client NOTICE mismatch")
 
     print(json.dumps({
-        "schema": "WORKBRIDGE_MEDIA_SPK_VERIFY_V1",
+        "schema": "WORKBRIDGE_RELAY_SPK_VERIFY_V1",
         "status": "PASS",
         "sha256": sha256(spk_path.read_bytes()),
         "bytes": spk_path.stat().st_size,

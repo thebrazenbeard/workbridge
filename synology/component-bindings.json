@@ -1,0 +1,37 @@
+{
+  "authority": {
+    "filesystem_roots_at_install": [],
+    "mcp_transport": "stdio",
+    "nas_share_permissions_granted": false,
+    "operator_admission_required": true,
+    "process_execution": false,
+    "public_listener_created_by_package": false,
+    "tunnel": "outbound_only",
+    "write_roots_at_install": []
+  },
+  "openai_tunnel_client": {
+    "armv7_derivative": true,
+    "commit": "a390c168ff1b2d14e73a95991c186c6aba3ff5a0",
+    "go": "1.27.0",
+    "license": "Apache-2.0",
+    "portability_transform": "tools/patch_openai_tunnel_client_armv7.py",
+    "qualified_binary_sha256": "3c27d0e9d7dc44488704a3c1687155b7fb5cf80b1fcd3c3d78fac1494229e671",
+    "repository": "openai/tunnel-client",
+    "tag": "v0.0.15",
+    "target": "linux/arm GOARM=7"
+  },
+  "package": {
+    "arch": "armada38x",
+    "id": "WorkBridgeRelay",
+    "version": "0.1.0-0001"
+  },
+  "schema": "WORKBRIDGE_RELAY_BINDINGS_V1",
+  "workbridge_mcp": {
+    "build_flags": "-trimpath -buildvcs=false -ldflags=-buildid=",
+    "commit": "b650b50abcbe1f81c653e1c2d305849b5d494489",
+    "go": "1.25.12",
+    "qualified_binary_sha256": "91e2bc04b4970b88fa1ff85c1c9363ba593c1325ce23008b7d7138908d3ddf86",
+    "repository": "thebrazenbeard/workbridge",
+    "target": "linux/arm GOARM=7"
+  }
+}

@@ -1,11 +1,7 @@
 {
   "schema": "WORKBRIDGE_CONFIG_V1",
-  "read_roots": [
-    "/var/packages/WorkBridgeMedia/shares/Media/Library"
-  ],
-  "write_roots": [
-    "/var/packages/WorkBridgeMedia/shares/Media/Library"
-  ],
+  "read_roots": [],
+  "write_roots": [],
   "limits": {
     "max_read_bytes": 8388608,
     "max_write_bytes": 8388608,
@@ -17,7 +13,8 @@
     "working_roots": [],
     "max_runtime_seconds": 60,
     "max_output_bytes": 1048576,
-    "max_args": 64
+    "max_args": 64,
+    "max_concurrent": 4
   },
   "http": {
     "listen": "127.0.0.1:8765",

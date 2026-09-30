@@ -11,7 +11,7 @@ import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MEDIA = ROOT / "media_bridge"
+PACKAGE = ROOT / "synology"
 VERSION = "0.1.0-0001"
 ARCH = "armada38x"
 
@@ -28,7 +28,7 @@ def add_tree(out: dict[str, tuple[bytes, int]], root: Path, prefix: str = "") ->
             raise ValueError(f"unsupported source entry: {path}")
         rel = path.relative_to(root).as_posix()
         name = f"{prefix}/{rel}" if prefix else rel
-        mode = 0o755 if path.stat().st_mode & stat.S_IXUSR else 0o644
+        mode = 0o755 if name.startswith(("scripts/", "bin/")) else 0o644
         out[name] = (path.read_bytes(), mode)
 
 
@@ -64,7 +64,7 @@ def main() -> int:
 
     workbridge = Path(args.workbridge_bin).read_bytes()
     tunnel = Path(args.tunnel_bin).read_bytes()
-    bindings = json.loads((MEDIA / "component-bindings.json").read_text(encoding="utf-8"))
+    bindings = json.loads((PACKAGE / "component-bindings.json").read_text(encoding="utf-8"))
 
     if sha256(workbridge) != bindings["workbridge_mcp"]["qualified_binary_sha256"]:
         raise SystemExit("WorkBridge ARMv7 binary digest does not match qualified binding")
@@ -72,13 +72,13 @@ def main() -> int:
         raise SystemExit("tunnel-client ARMv7 binary digest does not match qualified binding")
 
     inner: dict[str, tuple[bytes, int]] = {}
-    add_tree(inner, MEDIA / "payload")
-    add_tree(inner, MEDIA / "third_party", "third_party")
+    add_tree(inner, PACKAGE / "payload")
+    add_tree(inner, PACKAGE / "third_party", "third_party")
     inner["bin/workbridge-mcp"] = (workbridge, 0o755)
     inner["bin/tunnel-client-runtime"] = (tunnel, 0o755)
 
     provenance = {
-        "schema": "WORKBRIDGE_MEDIA_RUNTIME_PROVENANCE_V1",
+        "schema": "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1",
         "package_version": VERSION,
         "package_arch": ARCH,
         "source_head": args.source_head,
@@ -94,10 +94,10 @@ def main() -> int:
     )
 
     outer: dict[str, tuple[bytes, int]] = {}
-    add_tree(outer, MEDIA / "spk")
+    add_tree(outer, PACKAGE / "spk")
     outer["package.tgz"] = (tar_bytes(inner, True), 0o644)
 
-    output = ROOT / "dist" / f"WorkBridgeMedia-{VERSION}-{ARCH}.spk"
+    output = ROOT / "dist" / f"WorkBridgeRelay-{VERSION}-{ARCH}.spk"
     output.parent.mkdir(parents=True, exist_ok=True)
     payload = tar_bytes(outer, False)
     output.write_bytes(payload)

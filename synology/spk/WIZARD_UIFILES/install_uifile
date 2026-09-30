@@ -1,6 +1,6 @@
 [
   {
-    "step_title": "Connect WorkBridgeMedia to ChatGPT",
+    "step_title": "Connect WorkBridgeRelay to ChatGPT",
     "items": [
       {
         "type": "textfield",

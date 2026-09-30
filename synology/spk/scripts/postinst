@@ -1,18 +1,18 @@
 #!/bin/sh
 set -eu
 
-ROOT=/var/packages/WorkBridgeMedia
+ROOT=/var/packages/WorkBridgeRelay
 VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
 TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
 TUNNEL_ID_FILE="$VAR/tunnel-id"
 API_KEY_FILE="$VAR/runtime-api-key"
-CONFIG_FILE="$VAR/workbridge-media.json"
+CONFIG_FILE="$VAR/workbridge-relay.json"
 
 TUNNEL_ID="${SYNOPKG_WZF_wizard_tunnel_id:-${wizard_tunnel_id:-}}"
 API_KEY="${SYNOPKG_WZF_wizard_runtime_api_key:-${wizard_runtime_api_key:-}}"
 
 fail() {
-    printf '%s\n' "WorkBridgeMedia install: $*" >&2
+    printf '%s\n' "WorkBridgeRelay install: $*" >&2
     exit 1
 }
 
@@ -43,7 +43,7 @@ mv "$API_KEY_FILE.new" "$API_KEY_FILE"
 chmod 600 "$API_KEY_FILE"
 
 if [ ! -e "$CONFIG_FILE" ]; then
-    cp "$TARGET/etc/workbridge-media.json" "$CONFIG_FILE.new"
+    cp "$TARGET/etc/workbridge-relay.json" "$CONFIG_FILE.new"
     chmod 600 "$CONFIG_FILE.new"
     mv "$CONFIG_FILE.new" "$CONFIG_FILE"
 fi
