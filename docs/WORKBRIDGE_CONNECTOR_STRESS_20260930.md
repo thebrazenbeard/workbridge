@@ -56,7 +56,7 @@ This run supersedes the preliminary bounded checks for any concurrency/capacity 
 The harness used the already-present local WORKBRIDGE_CLIENT_TOKEN only from process environment and never printed or persisted its value. It opened 64 direct loopback MCP requests to the same live Commander service. Each request called the existing start_process tool with a six-second bounded sleep/marker command. Commander therefore admitted all 64 upstream contexts while its own per-device execution pool scheduled at most eight effects at a time. The harness sampled /health every 100 ms until all requests completed.
 
 Raw evidence is committed as docs/evidence/WORKBRIDGE_COMMANDER_STRESS_64X8_20260930.json. Its exact SHA-256 before repository commit was:
-43a46e6c7c8791b0146ef0645ab9aa18c79895e981bcfafaad14180b0303687e
+43a46e6c7c8791b0146ef0645ab9aa18c79895e981bcfbfaad14180b0303687e
 
 Observed live peaks and completion:
 
@@ -101,7 +101,7 @@ The memory delta is **not classified as a leak** from these snapshots. Windows f
 
 Two earlier harness attempts are preserved but excluded from the 64/64 result. The first failed before load because native PowerShell-to-Python argument quoting removed a Python string delimiter. A later 8-call emulation attempt executed seven calls but one was rejected by the ChatGPT host safety layer; that run also did not exercise Commander's actual 64-context orchestrator directly. Neither is counted as a Commander capacity failure.
 
-The final harness used direct loopback MCP requests and Commander's own health counters. Its source script remained in Lappy scratch only; its SHA-256 was 4062e6e326086eaf6d20fff8da0671d3c989d559debfbe780fff5cf03514f911.
+The final harness used direct loopback MCP requests and Commander's own health counters. The exact reproducible harness is committed as `tools/stress_workbridge_commander_64x8.ps1`; its SHA-256 is `4062e6e326086eaf6d20fff8da0671d3c989d559debfbe780fff5cf03514f911`. It reads the existing `WORKBRIDGE_CLIENT_TOKEN` from process environment and does not contain or persist the token value.
 
 ## Reconciliation / PR-cleanup discipline
 
