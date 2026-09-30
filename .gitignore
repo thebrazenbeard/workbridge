@@ -1,0 +1,7 @@
+dist/
+__pycache__/
+*.pyc
+*.exe
+*.log
+.env
+workbridge-config.json
