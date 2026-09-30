@@ -1,9 +1,28 @@
 # WorkBridgeRelay DSM operator runbook
 
-Status: repository source and candidate-SPK evidence only. Installation, provider connection and access grants have not been performed.
+Status (2026-09-30): user-reported DSM package installation/Running screenshot and successful ChatGPT workbridge_health invocation. Device-specific tunnel process identity and RAM metrics remain unverified; see docs/WORKBRIDGE_RELAY_LIVE_OBSERVATION_20260930.md.
 
 ## Intended single-device route
 ChatGPT WorkBridgeRelay connection -> OpenAI Secure MCP Tunnel -> DSM WorkBridgeRelay service -> stdio WorkBridge MCP server. This SPK is independent of the existing Lappy WorkBridge Commander app/connection. Provision a distinct tunnel ID; the upstream client does not support simultaneous stdio clients sharing one ID.
+
+## Read-only DS216 pre-install qualification
+
+Before Package Center installation, run the repo's
+synology/tools/nas_preflight.sh inside an already authorized DSM shell.
+It reads the DS216 model, 32-bit ARM architecture, DSM version, physical
+and available memory, package presence, and volume free space. It does not
+authenticate, write files, restart services or install anything.
+
+The source-level gate expects the original DS216, DSM 7.2 build >= 72806,
+roughly 512 MiB total RAM, at least 192 MiB currently available RAM, and
+512 MiB free space. These are conservative screening thresholds, not proof
+that the NAS will remain responsive or that a tunnel can run. Missing
+MemAvailable is reported as unknown and requires an operator's DSM Resource
+Monitor review before installation. If the package already exists, stop
+instead of implicitly upgrading. PREPARED_ONLY is never installation proof.
+
+The WORKBRIDGE_PREFLIGHT_* environment path overrides exist to run hermetic
+CI fixtures, not as a supported means of bypassing deployment requirements.
 
 ## Package qualification before any live effect
 1. Check the exact commit, open Draft PR, WorkBridgeRelay ARMv7 SPK Actions outcome and attached SHA256. The workflow artifact (not a random upload) is the candidate.
@@ -23,7 +42,7 @@ This is intentionally useful for health and transport qualification first, NOT p
 
 Preserve the operator's existing config on upgrade. Do not auto-grant a share using DSM data-share merely to make a path work.
 
-## Post-install verification gates (not yet performed)
+## Post-install verification gates (partially observed 2026-09-30)
 1. Observe real DSM Package Center status and synosystemctl status for pkguser-workbridgerelay.service.
 2. As the installed package user, run /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh. It prints MemTotal and MemAvailable snapshots if available (otherwise unknown) before health checks; do not treat them as process RSS or memory headroom proof. It distinguishes missing files, tunnel process health (/healthz), and ready tunnel (/readyz); output deliberately never reports the secret values.
 3. Validate the dedicated tunnel in its provider's control plane, then observe authenticated MCP initialize/tools/list/tool-call from the exact selected ChatGPT connector. /readyz does not prove authorized ChatGPT access.

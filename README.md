@@ -38,6 +38,9 @@ collisions. One active stdio tunnel-client per unique tunnel ID is required;
 do not reuse the existing Lappy/workstation tunnel identity.
 
 See docs/WORKBRIDGE_RELAY_DSM_OPERATOR_RUNBOOK.md for the exact operator-side installation, permissions and readiness gates.
+The read-only source-side NAS preflight is synology/tools/nas_preflight.sh;
+it requires an already-authorized NAS shell and does not install anything.
+
 
 The installer collects tunnel ID and runtime API key using DSM wizard
 fields, stores them under package-owned state with mode 0600, and starts
