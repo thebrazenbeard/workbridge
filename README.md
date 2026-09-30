@@ -1,7 +1,7 @@
 # WorkBridge Relay for Synology
 
 This repository builds one standalone Synology DSM package:
-WorkBridgeRelay-0.1.0-0002-armada38x.spk.
+WorkBridgeRelay-0.1.0-0003-armada38x.spk.
 
 Revision 0002 is a source-level upgrade candidate, not proof that the
 operator-installed 0001 package has changed. See

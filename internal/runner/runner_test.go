@@ -45,7 +45,7 @@ func TestPinnedExecutableRunsInBoundedWorkingRoot(t *testing.T) {
 	cfg := config.ProcessConfig{
 		Enabled: true,
 		AllowedExecutables: []config.ExecutableGrant{{
-			Name: "echo", Path: exe, SHA256: hashForTest(t, exe),
+			Name: "echo", Path: exe, SHA256: hashForTest(t, exe), AllowArguments: true,
 		}},
 		WorkingRoots: []string{root},
 		MaxRuntimeSeconds: 5,
@@ -65,6 +65,46 @@ func TestPinnedExecutableRunsInBoundedWorkingRoot(t *testing.T) {
 	}
 	if res.ExitCode != 0 || res.TimedOut {
 		t.Fatalf("unexpected result: %#v", res)
+	}
+}
+
+func TestGrantRejectsCallerArgumentsUnlessExplicitlyAuthorized(t *testing.T) {
+	exe, args := platformEcho(t)
+	if _, err := os.Stat(exe); err != nil {
+		t.Skipf("platform echo unavailable: %v", err)
+	}
+	root := t.TempDir()
+	cfg := config.ProcessConfig{
+		Enabled: true,
+		AllowedExecutables: []config.ExecutableGrant{{
+			Name: "echo", Path: exe, SHA256: hashForTest(t, exe),
+		}},
+		WorkingRoots: []string{root},
+		MaxRuntimeSeconds: 5,
+		MaxOutputBytes: 1024,
+		MaxArgs: 8,
+	}
+	r, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	if _, err := r.Run(context.Background(), "echo", args, root); err == nil {
+		t.Fatal("caller-supplied arguments accepted without allow_arguments authority")
+	}
+	if _, err := r.Run(context.Background(), "echo", nil, root); err != nil {
+		t.Fatalf("zero-argument execution was rejected: %v", err)
+	}
+
+	cfg.AllowedExecutables[0].AllowArguments = true
+	r2, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Close()
+	if _, err := r2.Run(context.Background(), "echo", args, root); err != nil {
+		t.Fatalf("explicitly authorized arguments were rejected: %v", err)
 	}
 }
 
