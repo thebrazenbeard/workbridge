@@ -35,6 +35,8 @@ records its address in a private package file, and avoids fixed-port
 collisions. One active stdio tunnel-client per unique tunnel ID is required;
 do not reuse the existing Lappy/workstation tunnel identity.
 
+See docs/WORKBRIDGE_RELAY_DSM_OPERATOR_RUNBOOK.md for the exact operator-side installation, permissions and readiness gates.
+
 The installer collects tunnel ID and runtime API key using DSM wizard
 fields, stores them under package-owned state with mode 0600, and starts
 the package-user service. It does not grant any NAS share permission.

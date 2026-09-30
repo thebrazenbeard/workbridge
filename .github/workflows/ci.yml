@@ -1,8 +1,12 @@
 name: WorkBridge source checks
 on:
   push:
-    branches: [main, 'work/**', 'fix/**']
+    branches: [main]
   pull_request:
+concurrency:
+  group: workbridge-core-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 jobs:
