@@ -21,6 +21,9 @@ jobs:
       - name: Checkout exact WorkBridge source
         uses: actions/checkout@v4
         with:
+          # pull_request default checkout is a synthetic merge SHA.
+          # Build artifacts/provenance against the actual PR head instead.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: workbridge
           persist-credentials: false
 
@@ -36,7 +39,8 @@ jobs:
 
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          expected_head="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected_head"
           python3 -m unittest discover -s synology/tests -v
           go mod verify
           go test ./...

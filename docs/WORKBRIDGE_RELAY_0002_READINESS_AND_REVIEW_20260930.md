@@ -112,3 +112,16 @@ checkout provenance must still be trusted: a local modified repository is not
 an independent external attestation. New tests forge each binary digest and
 assert rejection. The CI verifier also accepts the exact expected source
 commit explicitly from git rev-parse HEAD.
+
+
+## GitHub pull-request checkout identity
+
+GitHub Actions normally checks out a synthetic pull-request merge ref
+unless checkout is given an explicit ref. The SPK job now supplies
+the PR's actual head SHA (falling back to github.sha for push/manual
+workflows), and checks git rev-parse HEAD against that value before
+building. This keeps archived source_head tied to the reviewable exact
+Draft PR branch revision rather than an ephemeral merge ref.
+
+This identity check is a CI provenance requirement, not a claim that
+the deployed 0001 package uses a newly built 0002 binary.

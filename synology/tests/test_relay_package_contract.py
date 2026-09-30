@@ -74,6 +74,14 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertIn("readyz",doctor)
         self.assertIn("mcp=not_independently_verified",doctor)
 
+    def test_artifact_workflow_uses_actual_pull_request_head(self):
+        workflow=(ROOT/".github/workflows/workbridge-relay-spk.yml").read_text()
+        desired="$"+"{{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertIn("ref: "+desired,workflow)
+        self.assertIn("expected_head=\""+desired+"\"",workflow)
+        self.assertIn('test "$(git rev-parse HEAD)" = "$expected_head"',workflow)
+        self.assertNotIn('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"',workflow)
+
     def test_ds216_outage_restart_spacing_does_not_exhaust_start_limit(self):
         unit = (SPK/"spk/conf/systemd/pkguser-workbridgerelay.service").read_text()
         settings={}
