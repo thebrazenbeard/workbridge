@@ -56,16 +56,24 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertIn('API_KEY_FILE="$VAR/runtime-api-key"',launch)
         self.assertIn('--mcp.command "$MCP_COMMAND"', launch)
         self.assertIn('--control-plane.api-key "file:$API_KEY_FILE"',launch)
-        self.assertIn('--health.listen-addr "127.0.0.1:17449"',launch)
+        self.assertIn('--health.listen-addr "127.0.0.1:0"',launch)
+        self.assertIn('--health.url-file "$HEALTH_URL_FILE"',launch)
+        self.assertIn(': > "$HEALTH_URL_FILE"',launch)
         self.assertNotIn("--mcp.server-url",launch)
         self.assertNotIn("ssh",launch.lower())
         self.assertNotIn("shares/",launch)
         self.assertNotIn("http://0.0.0.0",launch)
+        doctor=(SPK/"payload/bin/diagnose-workbridge-relay.sh").read_text()
+        self.assertIn("readyz",doctor)
+        self.assertIn("mcp=not_independently_verified",doctor)
 
     def test_package_service_and_scripts(self):
         unit=(SPK/"spk/conf/systemd/pkguser-workbridgerelay.service").read_text()
         self.assertIn("ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh",unit)
         self.assertIn("UMask=0077",unit)
+        self.assertIn("KillMode=control-group",unit)
+        self.assertIn("RestartSec=15",unit)
+        self.assertIn("StartLimitBurst=5",unit)
         for name in SCRIPTS:
             path=SPK/"spk/scripts"/name
             self.assertTrue(path.exists())

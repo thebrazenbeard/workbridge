@@ -1,11 +1,15 @@
 [Unit]
-Description=WorkBridgeRelay Secure MCP Tunnel
+Description=WorkBridgeRelay outbound Secure MCP Tunnel
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh
 Restart=on-failure
-RestartSec=5
+RestartSec=15
+KillMode=control-group
+TimeoutStopSec=30
 UMask=0077
 
 [Install]

@@ -95,6 +95,7 @@ def main() -> int:
 
     outer: dict[str, tuple[bytes, int]] = {}
     add_tree(outer, PACKAGE / "spk")
+    outer["LICENSE"] = ((ROOT / "LICENSE").read_bytes(), 0o644)
     outer["package.tgz"] = (tar_bytes(inner, True), 0o644)
 
     output = ROOT / "dist" / f"WorkBridgeRelay-{VERSION}-{ARCH}.spk"

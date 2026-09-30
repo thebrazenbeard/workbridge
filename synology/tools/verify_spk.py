@@ -64,6 +64,7 @@ def main() -> int:
 
     required_outer = {
         "INFO",
+        "LICENSE",
         "PACKAGE_ICON.PNG",
         "PACKAGE_ICON_256.PNG",
         "conf/privilege",
@@ -93,6 +94,12 @@ def main() -> int:
         if outer_modes[script] & 0o111 == 0:
             raise ValueError(f"lifecycle script is not executable: {script}")
 
+    for name, size in (("PACKAGE_ICON.PNG", 64), ("PACKAGE_ICON_256.PNG", 256)):
+        image=outer[name]
+        if len(image) < 24 or image[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack(">II",image[16:24]) != (size,size):
+            raise ValueError(f"DSM7 package icon {name} must be {size}x{size} PNG")
+    if b"SOURCE-AVAILABLE PROPRIETARY LICENSE" not in outer["LICENSE"]:
+        raise ValueError("SPK must carry the source license")
     info = outer["INFO"].decode("utf-8")
     for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0001"', 'arch="armada38x"'):
         if required not in info:
@@ -117,6 +124,7 @@ def main() -> int:
         "bin/workbridge-mcp",
         "bin/tunnel-client-runtime",
         "bin/run-workbridge-relay.sh",
+        "bin/diagnose-workbridge-relay.sh",
         "etc/workbridge-relay.json",
         "provenance/component-bindings.json",
         "third_party/openai-tunnel-client-LICENSE",
@@ -125,7 +133,7 @@ def main() -> int:
     if set(inner) != required_inner:
         raise ValueError(f"SPK inner member mismatch missing={sorted(required_inner-set(inner))} unexpected={sorted(set(inner)-required_inner)}")
 
-    for name in ("bin/workbridge-mcp", "bin/tunnel-client-runtime", "bin/run-workbridge-relay.sh"):
+    for name in ("bin/workbridge-mcp", "bin/tunnel-client-runtime", "bin/run-workbridge-relay.sh", "bin/diagnose-workbridge-relay.sh"):
         if inner_modes[name] & 0o111 == 0:
             raise ValueError(f"required executable mode missing: {name}")
 
@@ -163,13 +171,18 @@ def main() -> int:
     launcher = inner["bin/run-workbridge-relay.sh"].decode("utf-8")
     if "--mcp.command" not in launcher or "--mcp.server-url" in launcher:
         raise ValueError("launcher must use stdio WorkBridge transport")
-    if "127.0.0.1:17449" not in launcher:
-        raise ValueError("health listener must remain loopback")
+    if "--health.listen-addr \"127.0.0.1:0\"" not in launcher:
+        raise ValueError("health listener must bind ephemeral loopback")
+    if "--health.url-file \"$HEALTH_URL_FILE\"" not in launcher:
+        raise ValueError("health URL must go to package-private file")
     if "file:$API_KEY_FILE" not in launcher:
         raise ValueError("runtime secret must be file-referenced")
     if "shares/" in launcher or "Media" in launcher:
         raise ValueError("relay launcher must not select an arbitrary NAS share")
 
+    doctor = inner["bin/diagnose-workbridge-relay.sh"].decode("utf-8")
+    if "readyz" not in doctor or "healthz" not in doctor or "mcp=not_independently_verified" not in doctor:
+        raise ValueError("operator doctor lacks readiness/claim distinctions")
     if not inner["third_party/openai-tunnel-client-LICENSE"].strip():
         raise ValueError("OpenAI tunnel-client LICENSE missing")
     if b"Copyright 2026 OpenAI" not in inner["third_party/openai-tunnel-client-NOTICE"]:

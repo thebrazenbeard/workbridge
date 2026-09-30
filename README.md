@@ -25,6 +25,16 @@ not confer additional DSM filesystem permissions.
 - synology/tests: package security, identity, and lifecycle tests.
 - cmd and internal: independent Go WorkBridge MCP runtime.
 
+The included operator diagnostic runs on installed DSM:
+
+    /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh
+
+It distinguishes healthy/ready from actual MCP qualification; credentials
+are never printed. The tunnel listener binds an ephemeral loopback port,
+records its address in a private package file, and avoids fixed-port
+collisions. One active stdio tunnel-client per unique tunnel ID is required;
+do not reuse the existing Lappy/workstation tunnel identity.
+
 The installer collects tunnel ID and runtime API key using DSM wizard
 fields, stores them under package-owned state with mode 0600, and starts
 the package-user service. It does not grant any NAS share permission.
