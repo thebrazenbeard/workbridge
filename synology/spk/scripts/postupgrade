@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+ROOT=/var/packages/WorkBridgeRelay
+VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
+TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
+CONFIG_FILE="$VAR/workbridge-relay.json"
+fail() {
+    printf '%s\n' "WorkBridgeRelay upgrade: $*" >&2
+    exit 1
+}
+if [ -L "$VAR" ]; then
+    # DSM 7 intentionally links /var/packages/PKG/var to @appdata/PKG.
+    # Admit ONLY the DSM package-private destination, not arbitrary symlinks.
+    RESOLVED_VAR=$(readlink -f "$VAR") || fail "package state link cannot be resolved"
+    EXPECTED_VOL=
+    if [ -n "${SYNOPKG_PKGDEST_VOL:-}" ]; then
+        EXPECTED_VOL=$(readlink -f "$SYNOPKG_PKGDEST_VOL/@appdata/WorkBridgeRelay" 2>/dev/null || true)
+    fi
+    if [ "$RESOLVED_VAR" != "/usr/local/packages/@appdata/WorkBridgeRelay" ] &&
+       { [ -z "$EXPECTED_VOL" ] || [ "$RESOLVED_VAR" != "$EXPECTED_VOL" ]; }; then
+        fail "package state link points outside DSM package appdata"
+    fi
+fi
+if [ -e "$VAR" ]; then
+    [ -d "$VAR" ] || fail "package state path is not a directory"
+fi
+for path in "$CONFIG_FILE" "$VAR/tunnel-id" "$VAR/runtime-api-key"; do
+    [ ! -L "$path" ] || fail "package state file is a symlink"
+    if [ -e "$path" ]; then
+        [ -f "$path" ] || fail "package state path is not a regular file"
+    fi
+done
+[ -f "$TARGET/etc/workbridge-relay.json" ] && [ ! -L "$TARGET/etc/workbridge-relay.json" ] || fail "packaged default config missing or unsafe"
+mkdir -p "$VAR"
+chmod 700 "$VAR"
+umask 077
+TMP_CONFIG=
+cleanup() {
+    [ -z "$TMP_CONFIG" ] || rm -f "$TMP_CONFIG"
+}
+trap cleanup 0
+trap 'exit 1' 1 2 3 15
+
+if [ ! -e "$CONFIG_FILE" ]; then
+    TMP_CONFIG=$(mktemp "$VAR/.workbridge-relay.XXXXXX") || fail "cannot stage config"
+    cat "$TARGET/etc/workbridge-relay.json" > "$TMP_CONFIG"
+    chmod 600 "$TMP_CONFIG"
+    mv -f "$TMP_CONFIG" "$CONFIG_FILE"
+    TMP_CONFIG=
+fi
+chmod 600 "$CONFIG_FILE"
+exit 0

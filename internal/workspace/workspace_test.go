@@ -11,11 +11,11 @@ import (
 
 func testConfig(root string, writable bool) *config.Config {
 	cfg := &config.Config{
-		Schema: config.Schema,
+		Schema:    config.Schema,
 		ReadRoots: []string{root},
-		Limits: config.Limits{MaxReadBytes: 1024, MaxWriteBytes: 1024, MaxDirectoryEntries: 10},
-		Process: config.ProcessConfig{MaxRuntimeSeconds: 1, MaxOutputBytes: 1024, MaxArgs: 8},
-		HTTP: config.HTTPConfig{Listen: "127.0.0.1:8765", Path: "/mcp"},
+		Limits:    config.Limits{MaxReadBytes: 1024, MaxWriteBytes: 1024, MaxDirectoryEntries: 10},
+		Process:   config.ProcessConfig{MaxRuntimeSeconds: 1, MaxOutputBytes: 1024, MaxArgs: 8},
+		HTTP:      config.HTTPConfig{Listen: "127.0.0.1:8765", Path: "/mcp"},
 	}
 	if writable {
 		cfg.WriteRoots = []string{root}
@@ -124,7 +124,6 @@ func TestStatReportsSymlinkWithoutBreakingCompatibilityFields(t *testing.T) {
 	}
 }
 
-
 func TestMoveIsSameRootAndNoReplace(t *testing.T) {
 	root := t.TempDir()
 	source := filepath.Join(root, "source.mkv")
@@ -169,5 +168,29 @@ func TestMoveOutsideWriteRootDenied(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "outside.mkv")
 	if err := s.Move(source, outside); err == nil {
 		t.Fatal("move outside configured write root succeeded")
+	}
+}
+
+func TestMoveRejectsDirectoryWithoutModifyingContents(t *testing.T) {
+	root := t.TempDir()
+	from := filepath.Join(root, "folder")
+	if err := os.Mkdir(from, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	original := filepath.Join(from, "keep.txt")
+	if err := os.WriteFile(original, []byte("untouched"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc, err := New(testConfig(root, true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	to := filepath.Join(root, "renamed-folder")
+	if err := svc.Move(from, to); err == nil || !strings.Contains(err.Error(), "regular files only") {
+		t.Fatalf("directory move must fail closed: %v", err)
+	}
+	if b, err := os.ReadFile(original); err != nil || string(b) != "untouched" {
+		t.Fatalf("directory content changed: %q %v", b, err)
 	}
 }

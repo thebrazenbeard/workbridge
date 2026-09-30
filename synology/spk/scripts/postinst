@@ -1,0 +1,93 @@
+#!/bin/sh
+set -eu
+
+ROOT=/var/packages/WorkBridgeRelay
+VAR="${SYNOPKG_PKGVAR:-$ROOT/var}"
+TARGET="${SYNOPKG_PKGDEST:-$ROOT/target}"
+TUNNEL_ID_FILE="$VAR/tunnel-id"
+API_KEY_FILE="$VAR/runtime-api-key"
+CONFIG_FILE="$VAR/workbridge-relay.json"
+
+TUNNEL_ID="${SYNOPKG_WZF_wizard_tunnel_id:-${wizard_tunnel_id:-}}"
+API_KEY="${SYNOPKG_WZF_wizard_runtime_api_key:-${wizard_runtime_api_key:-}}"
+
+fail() {
+    printf '%s\n' "WorkBridgeRelay install: $*" >&2
+    exit 1
+}
+
+if [ -L "$VAR" ]; then
+    # DSM 7 intentionally links /var/packages/PKG/var to @appdata/PKG.
+    # Admit ONLY the DSM package-private destination, not arbitrary symlinks.
+    RESOLVED_VAR=$(readlink -f "$VAR") || fail "package state link cannot be resolved"
+    EXPECTED_VOL=
+    if [ -n "${SYNOPKG_PKGDEST_VOL:-}" ]; then
+        EXPECTED_VOL=$(readlink -f "$SYNOPKG_PKGDEST_VOL/@appdata/WorkBridgeRelay" 2>/dev/null || true)
+    fi
+    if [ "$RESOLVED_VAR" != "/usr/local/packages/@appdata/WorkBridgeRelay" ] &&
+       { [ -z "$EXPECTED_VOL" ] || [ "$RESOLVED_VAR" != "$EXPECTED_VOL" ]; }; then
+        fail "package state link points outside DSM package appdata"
+    fi
+fi
+if [ -e "$VAR" ]; then
+    [ -d "$VAR" ] || fail "package state path is not a directory"
+fi
+for path in "$TUNNEL_ID_FILE" "$API_KEY_FILE" "$CONFIG_FILE"; do
+    [ ! -L "$path" ] || fail "package state file is a symlink"
+    if [ -e "$path" ]; then
+        [ -f "$path" ] || fail "package state path is not a regular file"
+    fi
+done
+
+if [ -z "$TUNNEL_ID" ] && [ -r "$TUNNEL_ID_FILE" ]; then
+    TUNNEL_ID=$(cat "$TUNNEL_ID_FILE")
+fi
+if [ -z "$API_KEY" ] && [ -r "$API_KEY_FILE" ]; then
+    API_KEY=$(cat "$API_KEY_FILE")
+fi
+
+[ -n "$TUNNEL_ID" ] || fail "Secure MCP Tunnel ID is required"
+[ -n "$API_KEY" ] || fail "Secure MCP Tunnel runtime API key is required"
+printf '%s' "$TUNNEL_ID" | grep -Eq '^tunnel_[a-z0-9]{32}$' || fail "invalid Secure MCP Tunnel ID"
+printf '%s' "$API_KEY" | grep -Eq '^[A-Za-z0-9_-]+$' || fail "runtime API key contains unsupported characters"
+[ -f "$TARGET/etc/workbridge-relay.json" ] && [ ! -L "$TARGET/etc/workbridge-relay.json" ] || fail "packaged default config missing or unsafe"
+
+mkdir -p "$VAR"
+chmod 700 "$VAR"
+umask 077
+TMP_ID=
+TMP_KEY=
+TMP_CONFIG=
+cleanup() {
+    [ -z "$TMP_ID" ] || rm -f "$TMP_ID"
+    [ -z "$TMP_KEY" ] || rm -f "$TMP_KEY"
+    [ -z "$TMP_CONFIG" ] || rm -f "$TMP_CONFIG"
+}
+trap cleanup 0
+trap 'exit 1' 1 2 3 15
+
+# Stage every new file before replacing a live credential.
+TMP_ID=$(mktemp "$VAR/.tunnel-id.XXXXXX") || fail "cannot stage tunnel ID"
+TMP_KEY=$(mktemp "$VAR/.runtime-api-key.XXXXXX") || fail "cannot stage runtime API key"
+printf '%s\n' "$TUNNEL_ID" > "$TMP_ID"
+printf '%s\n' "$API_KEY" > "$TMP_KEY"
+chmod 600 "$TMP_ID" "$TMP_KEY"
+
+if [ ! -e "$CONFIG_FILE" ]; then
+    TMP_CONFIG=$(mktemp "$VAR/.workbridge-relay.XXXXXX") || fail "cannot stage config"
+    cat "$TARGET/etc/workbridge-relay.json" > "$TMP_CONFIG"
+    chmod 600 "$TMP_CONFIG"
+fi
+
+mv -f "$TMP_ID" "$TUNNEL_ID_FILE"
+TMP_ID=
+mv -f "$TMP_KEY" "$API_KEY_FILE"
+TMP_KEY=
+if [ -n "$TMP_CONFIG" ]; then
+    mv -f "$TMP_CONFIG" "$CONFIG_FILE"
+    TMP_CONFIG=
+fi
+chmod 600 "$TUNNEL_ID_FILE"
+chmod 600 "$API_KEY_FILE"
+chmod 600 "$CONFIG_FILE"
+exit 0

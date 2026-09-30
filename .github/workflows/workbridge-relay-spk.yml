@@ -1,0 +1,134 @@
+name: WorkBridgeRelay ARMv7 SPK
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: workbridge-spk-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact WorkBridge source
+        uses: actions/checkout@v4
+        with:
+          # pull_request default checkout is a synthetic merge SHA.
+          # Build artifacts/provenance against the actual PR head instead.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: workbridge
+          persist-credentials: false
+
+      - name: Set up WorkBridge Go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.12'
+          cache-dependency-path: workbridge/go.sum
+
+      - name: Test core and cross-build exact WorkBridge ARMv7
+        shell: bash
+        working-directory: workbridge
+
+        run: |
+          set -euo pipefail
+          expected_head="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$expected_head"
+          python3 -m unittest discover -s synology/tests -v
+          go mod verify
+          go test ./...
+          go vet ./...
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=false -ldflags=-buildid= -o "$RUNNER_TEMP/workbridge-mcp-armv7" ./cmd/workbridge-mcp
+          file "$RUNNER_TEMP/workbridge-mcp-armv7"
+          file "$RUNNER_TEMP/workbridge-mcp-armv7" | grep -Eq 'ELF 32-bit LSB executable, ARM'
+          readelf -h "$RUNNER_TEMP/workbridge-mcp-armv7" | grep -Eq 'Machine:[[:space:]]+ARM'
+          python3 - "$RUNNER_TEMP/workbridge-mcp-armv7" <<'PYCODE'
+          import hashlib,json,pathlib,sys
+          expected=json.loads(pathlib.Path("synology/component-bindings.json").read_text())["workbridge_mcp"]["qualified_binary_sha256"]
+          actual=hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
+          assert actual==expected, f"WorkBridge ARMv7 source/binary pin mismatch: {actual}"
+          print("Verified WorkBridge ARMv7 SHA-256:",actual)
+          PYCODE
+
+      - name: Checkout pinned OpenAI tunnel-client
+        uses: actions/checkout@v4
+        with:
+          repository: openai/tunnel-client
+          ref: a390c168ff1b2d14e73a95991c186c6aba3ff5a0
+          path: tunnel-client
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pinned tunnel Go toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.0'
+          cache-dependency-path: tunnel-client/go.sum
+
+      - name: Validate and cross-build pinned tunnel ARMv7
+        shell: bash
+        working-directory: tunnel-client
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "a390c168ff1b2d14e73a95991c186c6aba3ff5a0"
+          test "$(git describe --tags --exact-match HEAD)" = "v0.0.15"
+          go mod verify
+          go test ./...
+          grep -Fq 'health.url-file' pkg/runtimeconfig/config.go
+          grep -Fq 'health.listen-addr' pkg/runtimeconfig/config.go
+          python3 ../workbridge/tools/patch_openai_tunnel_client_armv7.py .
+          git diff --check
+          test "$(git diff --name-only)" = "pkg/runtimeconfig/config.go"
+          test "$(git diff --numstat | awk '{print $1":"$2":"$3}')" = "6:6:pkg/runtimeconfig/config.go"
+          grep -c '^const _ = uint64' pkg/runtimeconfig/config.go | grep -qx '6'
+          if grep -q '^const _ = uint(' pkg/runtimeconfig/config.go; then
+            echo "Unpatched word-size-dependent assertion" >&2
+            exit 1
+          fi
+          go test ./...
+          module_path="$(go list -m -f '{{.Path}}')"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build \
+            -trimpath -ldflags "-s -w -X $module_path/pkg/version.GitSHA=$(git rev-parse HEAD)" \
+            -o "$RUNNER_TEMP/tunnel-client-runtime-armv7" ./cmd/client-runtime
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7"
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'ELF 32-bit LSB executable, ARM'
+          file "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'statically linked'
+          readelf -h "$RUNNER_TEMP/tunnel-client-runtime-armv7" | grep -Eq 'Machine:[[:space:]]+ARM'
+          python3 - "$RUNNER_TEMP/tunnel-client-runtime-armv7" <<'PYCODE'
+          import hashlib,json,pathlib,sys
+          expected=json.loads(pathlib.Path("../workbridge/synology/component-bindings.json").read_text())["openai_tunnel_client"]["qualified_binary_sha256"]
+          actual=hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest()
+          assert actual==expected, f"Tunnel ARMv7 binary hash mismatch: {actual}"
+          print("Verified tunnel ARMv7 SHA-256:",actual)
+          PYCODE
+
+      - name: Build, verify and hash standalone DSM SPK
+        shell: bash
+        working-directory: workbridge
+        run: |
+          set -euo pipefail
+          python3 synology/tools/build_spk.py \
+            --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" \
+            --tunnel-bin "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
+            --source-head "$(git rev-parse HEAD)"
+          python3 synology/tools/verify_spk.py --expected-source-head "$(git rev-parse HEAD)" dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk
+          sha256sum dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk | tee dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk.sha256
+          python3 -m compileall -q synology tools
+          for path in synology/spk/scripts/* synology/payload/bin/*.sh; do sh -n "$path"; done
+
+      - name: Upload verified standalone SPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: WorkBridgeRelay-0.1.0-0002-armada38x
+          path: |
+            workbridge/dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk
+            workbridge/dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk.sha256
+          if-no-files-found: error
+          compression-level: 0

@@ -1,0 +1,25 @@
+[Unit]
+Description=WorkBridgeRelay outbound Secure MCP Tunnel
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh
+Restart=on-failure
+# Retry at most four failed starts per five-minute window on a DS216.
+# A 90-second restart spacing does not exhaust StartLimitBurst=5 in 300 sec.
+# Unlike repeated 15-second failures, an offline boot can recover later.
+RestartSec=90
+KillMode=control-group
+TimeoutStopSec=30
+UMask=0077
+# DS216: dual-core ARMv7 at 1.3 GHz, only 512 MiB RAM total.
+# Soft Go runtime heap targets; NOT RSS or hard memory cgroup limits.
+# Applied to both tunnel parent and WorkBridge stdio child processes.
+Environment=GOMEMLIMIT=96MiB
+Environment=GOGC=75
+Environment=GOMAXPROCS=1
+
+[Install]
+WantedBy=default.target
