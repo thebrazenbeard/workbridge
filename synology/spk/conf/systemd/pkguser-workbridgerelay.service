@@ -7,7 +7,10 @@ StartLimitBurst=5
 Type=simple
 ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh
 Restart=on-failure
-RestartSec=15
+# Retry at most four failed starts per five-minute window on a DS216.
+# A 90-second restart spacing does not exhaust StartLimitBurst=5 in 300 sec.
+# Unlike repeated 15-second failures, an offline boot can recover later.
+RestartSec=90
 KillMode=control-group
 TimeoutStopSec=30
 UMask=0077

@@ -76,3 +76,39 @@ When Patrick explicitly elects a maintenance window:
 
 No merge, production routing change, credential change, automatic install,
 service restart, file grant or independent review is claimed here.
+
+## Packaging provenance and outage recovery hardening
+
+The SPK builder now rejects malformed or mismatched source-head arguments
+and refuses to produce a package when tracked source files differ from
+the checkout HEAD. The verifier checks that embedded source-head provenance
+is a full 40-character Git SHA and, when provided, matches the independently
+supplied expected Git SHA. CI explicitly passes its exact checkout HEAD
+to the verifier. This is **build provenance checking**, not external
+attestation of the physical NAS.
+
+DSM service restart spacing is raised from 15 to 90 seconds while retaining
+the five-starts-per-300-seconds ceiling. On an original DS216 this avoids a
+transient WAN outage causing five immediate failures and permanent
+StartLimit lockout, while reducing failed retry pressure on the NAS. It
+does not replace an on-device network outage or restart test and can
+introduce up to roughly a 90-second retry delay after a failed exit.
+No running service was restarted or reconfigured by this source change.
+
+
+## Archive verification resource ceiling and trust boundary
+
+Untrusted SPK/tar archives are now rejected if the outer SPK exceeds 48 MiB,
+a member exceeds 32 MiB, the aggregate uncompressed entries exceed 64 MiB,
+or either archive has more than 64 members. The verifier checks header sizes
+as members are read, avoiding an unbounded getmembers() scan before bounds.
+This is a verification-side DOS safeguard, not an on-NAS RAM budget.
+
+Critically, the SPK's embedded SHA256 manifest is NOT independently trusted.
+The verifier checks embedded component bindings against the repository's
+exact checked-out synology/component-bindings.json; replacing a binary and
+rewriting its self-reported hash cannot by itself pass validation. Source
+checkout provenance must still be trusted: a local modified repository is not
+an independent external attestation. New tests forge each binary digest and
+assert rejection. The CI verifier also accepts the exact expected source
+commit explicitly from git rev-parse HEAD.

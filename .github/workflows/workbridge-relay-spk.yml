@@ -114,7 +114,7 @@ jobs:
             --workbridge-bin "$RUNNER_TEMP/workbridge-mcp-armv7" \
             --tunnel-bin "$RUNNER_TEMP/tunnel-client-runtime-armv7" \
             --source-head "$(git rev-parse HEAD)"
-          python3 synology/tools/verify_spk.py dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk
+          python3 synology/tools/verify_spk.py --expected-source-head "$(git rev-parse HEAD)" dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk
           sha256sum dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk | tee dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk.sha256
           python3 -m compileall -q synology tools
           for path in synology/spk/scripts/* synology/payload/bin/*.sh; do sh -n "$path"; done

@@ -74,6 +74,24 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertIn("readyz",doctor)
         self.assertIn("mcp=not_independently_verified",doctor)
 
+    def test_ds216_outage_restart_spacing_does_not_exhaust_start_limit(self):
+        unit = (SPK/"spk/conf/systemd/pkguser-workbridgerelay.service").read_text()
+        settings={}
+        for line in unit.splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k,v=line.split("=",1)
+                settings[k]=v
+        interval=int(settings["StartLimitIntervalSec"])
+        burst=int(settings["StartLimitBurst"])
+        restart=int(settings["RestartSec"])
+        self.assertEqual(settings["Restart"],"on-failure")
+        self.assertEqual(settings["KillMode"],"control-group")
+        self.assertEqual(settings["UMask"],"0077")
+        self.assertGreaterEqual(restart*(burst-1),interval,
+            "an offline boot would exhaust start limit and stop recovering")
+        self.assertGreaterEqual(restart,60,
+            "DS216 retries should avoid excessive CPU and provider pressure")
+
     def test_package_service_and_scripts(self):
         unit=(SPK/"spk/conf/systemd/pkguser-workbridgerelay.service").read_text()
         self.assertIn("ExecStart=/var/packages/WorkBridgeRelay/target/bin/run-workbridge-relay.sh",unit)
@@ -82,7 +100,7 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertIn("Environment=GOGC=75",unit)
         self.assertIn("Environment=GOMAXPROCS=1",unit)
         self.assertIn("KillMode=control-group",unit)
-        self.assertIn("RestartSec=15",unit)
+        self.assertIn("RestartSec=90",unit)
         self.assertIn("StartLimitBurst=5",unit)
         for name in SCRIPTS:
             path=SPK/"spk/scripts"/name

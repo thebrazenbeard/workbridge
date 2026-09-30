@@ -6,6 +6,8 @@ import gzip
 import hashlib
 import io
 import json
+import re
+import subprocess
 import stat
 import tarfile
 from pathlib import Path
@@ -55,12 +57,34 @@ def tar_bytes(files: dict[str, tuple[bytes, int]], compress: bool) -> bytes:
     return raw.getvalue()
 
 
+def validate_source_head(head: str) -> None:
+    if re.fullmatch(r"[0-9a-f]{40}", head) is None:
+        raise SystemExit("source-head must be a full 40-character lowercase Git SHA")
+    actual = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"],
+        cwd=ROOT, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    if head != actual:
+        raise SystemExit("source-head differs from checked-out Git HEAD")
+
+
+def validate_clean_checkout() -> None:
+    # A source_sha from a dirty checkout would not identify the actual build.
+    changed = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=ROOT, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    if changed:
+        raise SystemExit("tracked source is modified: refusing unverifiable SPK provenance")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workbridge-bin", required=True)
     parser.add_argument("--tunnel-bin", required=True)
     parser.add_argument("--source-head", required=True)
     args = parser.parse_args()
+    validate_source_head(args.source_head)
 
     workbridge = Path(args.workbridge_bin).read_bytes()
     tunnel = Path(args.tunnel_bin).read_bytes()
@@ -70,6 +94,7 @@ def main() -> int:
         raise SystemExit("WorkBridge ARMv7 binary digest does not match qualified binding")
     if sha256(tunnel) != bindings["openai_tunnel_client"]["qualified_binary_sha256"]:
         raise SystemExit("tunnel-client ARMv7 binary digest does not match qualified binding")
+    validate_clean_checkout()
 
     inner: dict[str, tuple[bytes, int]] = {}
     add_tree(inner, PACKAGE / "payload")

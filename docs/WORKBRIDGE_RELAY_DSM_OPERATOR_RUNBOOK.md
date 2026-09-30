@@ -90,3 +90,27 @@ workspace_move, restricted to regular files and implemented using a hard
 link plus explicit unlink. No multi-path transaction guarantee is claimed.
 The 0001 package is unchanged until Patrick separately authorizes an upgrade.
 See docs/WORKBRIDGE_RELAY_0002_READINESS_AND_REVIEW_20260930.md.
+
+
+## Package provenance check
+
+The 0.1.0-0002 builder requires a clean tracked checkout and an exact
+source-head matching git rev-parse HEAD. A local modified checkout is not
+a verifiable package cut. To verify the CI artifact independently from the
+repo checkout, run the archive verifier with its expected-head argument:
+
+    python3 synology/tools/verify_spk.py --expected-source-head HEADSHA dist/WorkBridgeRelay-0.1.0-0002-armada38x.spk
+
+Use the actual full commit SHA in place of HEADSHA. Source-head validation
+and archived binary hashes must both pass before the artifact is considered
+a candidate for manual installation. No provider pairing is implied.
+
+
+## Archive verifier boundary
+
+The verifier refuses archives with oversized member counts, individual
+payloads, aggregate decompressed content or SPK size. It compares the
+embedded component-binding hash manifest to the trusted checked-out
+synology/component-bindings.json, rather than letting an untrusted package
+self-certify an altered binary by shipping a new hash. These checks are
+necessary, not an external signature or independent live DS216 attestation.

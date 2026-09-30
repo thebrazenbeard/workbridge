@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import io
 import json
+import re
 import struct
 import tarfile
 from pathlib import Path, PurePosixPath
@@ -12,12 +13,29 @@ from pathlib import Path, PurePosixPath
 
 
 
+MAX_ARCHIVE_MEMBERS = 64
+MAX_ARCHIVE_MEMBER_BYTES = 32 * 1024 * 1024
+MAX_ARCHIVE_TOTAL_BYTES = 64 * 1024 * 1024
+MAX_SPK_BYTES = 48 * 1024 * 1024
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
 def read_archive(archive: tarfile.TarFile) -> tuple[dict[str, bytes], dict[str, int]]:
-    members = archive.getmembers()
+    # Stream membership validation instead of getmembers(), which would
+    # allocate an unbounded list for an attacker-supplied tar archive.
+    members = []
+    while True:
+        member = archive.next()
+        if member is None:
+            break
+        if len(members) >= MAX_ARCHIVE_MEMBERS:
+            raise ValueError("SPK archive exceeds member count limit")
+        if member.size < 0 or member.size > MAX_ARCHIVE_MEMBER_BYTES:
+            raise ValueError(f"SPK archive member exceeds byte limit: {member.name}")
+        members.append(member)
     names = [member.name for member in members]
     if names != sorted(names):
         raise ValueError("archive entries are not deterministically sorted")
@@ -26,7 +44,13 @@ def read_archive(archive: tarfile.TarFile) -> tuple[dict[str, bytes], dict[str, 
 
     payloads: dict[str, bytes] = {}
     modes: dict[str, int] = {}
+    aggregate_bytes = 0
     for member in members:
+        if member.size < 0 or member.size > MAX_ARCHIVE_MEMBER_BYTES:
+            raise ValueError(f"SPK archive member exceeds byte limit: {member.name}")
+        aggregate_bytes += member.size
+        if aggregate_bytes > MAX_ARCHIVE_TOTAL_BYTES:
+            raise ValueError("SPK archive exceeds uncompressed byte limit")
         path = PurePosixPath(member.name)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError(f"unsafe archive path: {member.name}")
@@ -53,11 +77,30 @@ def require_armv7_elf(data: bytes, name: str) -> None:
         raise ValueError(f"{name} is not ARM ELF")
 
 
+def require_trusted_bindings(embedded: object) -> None:
+    # The untrusted SPK cannot vouch for its own binary hashes. An attacker
+    # could otherwise replace the binaries AND their embedded digest values.
+    trusted_path = Path(__file__).resolve().parents[1] / "component-bindings.json"
+    trusted = json.loads(trusted_path.read_text(encoding="utf-8"))
+    if embedded != trusted:
+        raise ValueError("SPK bindings differ from trusted checked-out component manifest")
+
+
+def validate_provenance_head(head: object, expected_head: str | None) -> None:
+    if not isinstance(head, str) or re.fullmatch(r"[0-9a-f]{40}", head) is None:
+        raise ValueError("missing or invalid full source-head provenance")
+    if expected_head is not None and head != expected_head:
+        raise ValueError("archive source-head differs from expected exact Git commit")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--expected-source-head", default=None)
     parser.add_argument("spk")
     args = parser.parse_args()
     spk_path = Path(args.spk)
+    if spk_path.stat().st_size > MAX_SPK_BYTES:
+        raise ValueError("SPK archive exceeds total file byte limit")
 
     with tarfile.open(spk_path, "r:") as outer_archive:
         outer, outer_modes = read_archive(outer_archive)
@@ -120,6 +163,10 @@ def main() -> int:
     for required in ("Environment=GOMEMLIMIT=96MiB", "Environment=GOGC=75", "Environment=GOMAXPROCS=1"):
         if required not in unit:
             raise ValueError(f"DS216 service Go runtime budget missing {required}")
+    for required in ("StartLimitIntervalSec=300", "StartLimitBurst=5", "RestartSec=90",
+                     "Restart=on-failure", "KillMode=control-group", "UMask=0077"):
+        if required not in unit:
+            raise ValueError(f"DS216 service recovery/isolation setting missing: {required}")
 
     with tarfile.open(fileobj=io.BytesIO(outer["package.tgz"]), mode="r:gz") as inner_archive:
         inner, inner_modes = read_archive(inner_archive)
@@ -147,7 +194,15 @@ def main() -> int:
     provenance = json.loads(inner["provenance/component-bindings.json"])
     if provenance.get("schema") != "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1":
         raise ValueError("provenance schema mismatch")
+    validate_provenance_head(provenance.get("source_head"), args.expected_source_head)
+    if provenance.get("package_version") != "0.1.0-0002":
+        raise ValueError("package version provenance mismatch")
+    if provenance.get("package_arch") != "armada38x":
+        raise ValueError("package architecture provenance mismatch")
     bindings = provenance["component_bindings"]
+    require_trusted_bindings(bindings)
+    if bindings.get("package", {}).get("version") != "0.1.0-0002":
+        raise ValueError("component version binding mismatch")
     if bindings["workbridge_mcp"]["commit"] != "4a34fdcaeb873e2316d2e61e78c2e204138fb8cb":
         raise ValueError("WorkBridge source binding mismatch")
     if bindings["openai_tunnel_client"]["commit"] != "a390c168ff1b2d14e73a95991c186c6aba3ff5a0":
