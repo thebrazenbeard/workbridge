@@ -114,7 +114,7 @@ class InstallerLifecycleTests(unittest.TestCase):
         self.var.symlink_to(outside, target_is_directory=True)
         result=self.run_script()
         self.assertNotEqual(result.returncode,0)
-        self.assertIn("symlink",result.stderr)
+        self.assertIn("outside DSM package appdata",result.stderr)
         self.assertEqual(list(outside.iterdir()),[])
 
     def test_rejects_credentials_symlink_without_touching_target(self):
