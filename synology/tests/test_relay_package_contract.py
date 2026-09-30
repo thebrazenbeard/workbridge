@@ -14,7 +14,7 @@ class RelayPackageContractTests(unittest.TestCase):
     def test_independent_dsm_package_identity(self):
         info = (SPK / "spk/INFO").read_text()
         self.assertIn('package="WorkBridgeRelay"', info)
-        self.assertIn('version="0.1.0-0002"', info)
+        self.assertIn('version="0.1.0-0003"', info)
         self.assertIn('arch="armada38x"', info)
         self.assertIn('os_min_ver="7.2-72806"', info)
         self.assertNotIn("Media", info)
@@ -153,7 +153,7 @@ class RelayPackageContractTests(unittest.TestCase):
         self.assertEqual(bindings["workbridge_mcp"]["repository"],
                          "thebrazenbeard/workbridge")
         self.assertEqual(bindings["workbridge_mcp"]["qualified_binary_sha256"],
-                         "3d930a0ab833270e9733091f300ef8fecbfb524c9a49ee44fb5de2fbceebf6ee")
+                         "ba4af8e0f91cf6cbaa56956cda0e525209a40a8dc825577640720c7fb07326e8")
         self.assertEqual(bindings["openai_tunnel_client"]["qualified_binary_sha256"],
                          "3c27d0e9d7dc44488704a3c1687155b7fb5cf80b1fcd3c3d78fac1494229e671")
         self.assertEqual(bindings["authority"]["filesystem_roots_at_install"],[])

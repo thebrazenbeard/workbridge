@@ -151,7 +151,7 @@ def main() -> int:
     if b"SOURCE-AVAILABLE PROPRIETARY LICENSE" not in outer["LICENSE"]:
         raise ValueError("SPK must carry the source license")
     info = outer["INFO"].decode("utf-8")
-    for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0002"', 'arch="armada38x"'):
+    for required in ('package="WorkBridgeRelay"', 'version="0.1.0-0003"', 'arch="armada38x"'):
         if required not in info:
             raise ValueError(f"INFO contract missing {required}")
 
@@ -202,15 +202,15 @@ def main() -> int:
     if provenance.get("schema") != "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1":
         raise ValueError("provenance schema mismatch")
     validate_provenance_head(provenance.get("source_head"), args.expected_source_head)
-    if provenance.get("package_version") != "0.1.0-0002":
+    if provenance.get("package_version") != "0.1.0-0003":
         raise ValueError("package version provenance mismatch")
     if provenance.get("package_arch") != "armada38x":
         raise ValueError("package architecture provenance mismatch")
     bindings = provenance["component_bindings"]
     require_trusted_bindings(bindings)
-    if bindings.get("package", {}).get("version") != "0.1.0-0002":
+    if bindings.get("package", {}).get("version") != "0.1.0-0003":
         raise ValueError("component version binding mismatch")
-    if bindings["workbridge_mcp"]["commit"] != "4a34fdcaeb873e2316d2e61e78c2e204138fb8cb":
+    if bindings["workbridge_mcp"]["commit"] != "0344d14551ea7e5a4309adb782e3f8b48c7b8b8c":
         raise ValueError("WorkBridge source binding mismatch")
     if bindings["openai_tunnel_client"]["commit"] != "a390c168ff1b2d14e73a95991c186c6aba3ff5a0":
         raise ValueError("tunnel-client source binding mismatch")
