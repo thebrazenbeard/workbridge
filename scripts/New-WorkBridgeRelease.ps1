@@ -38,8 +38,7 @@ Copy-Item -LiteralPath $readme -Destination (Join-Path $stage "README.md")
 Copy-Item -LiteralPath $notices -Destination (Join-Path $stage "THIRD_PARTY_NOTICES.md")
 Copy-Item -LiteralPath $template -Destination (Join-Path $stage "WorkBridgeMCP.xml.template")
 
-# LICENSE is intentionally optional. The repository currently has no project license.
-# If a license is added later, include it automatically without changing this script.
+# Include this repository license in every release.
 if (Test-Path -LiteralPath $license -PathType Leaf) {
     Copy-Item -LiteralPath $license -Destination (Join-Path $stage "LICENSE")
 }

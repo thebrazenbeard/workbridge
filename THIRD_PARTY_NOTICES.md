@@ -12,6 +12,6 @@ media_bridge/third_party/openai-tunnel-client-NOTICE.
 The Windows WinSW-compatible XML file is only a wrapper template; WinSW is not
 bundled or downloaded by this repository.
 
-No Desktop Commander duplicate, Vera runtime, or upstream DesktopCommanderMCP
+No unrelated orchestration runtime or upstream DesktopCommanderMCP
 source is distributed by this repository. The original native Go MCP server
 source remains subject to the project LICENSE.
