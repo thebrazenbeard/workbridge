@@ -170,16 +170,32 @@ func (p *RootPolicy) RenameNoReplace(source, destination string) (string, string
 	if sourceEntry != destinationEntry {
 		return "", "", errors.New("source and destination must be within the same configured root")
 	}
-	if _, err := sourceEntry.root.Lstat(sourceRel); err != nil {
+	// Rename after an Lstat(destination) check is NOT no-replace: another
+	// process can create the destination between the check and Rename, at
+	// which point standard rename semantics can overwrite that file.
+	//
+	// Root.Link atomically creates a directory entry only when the target
+	// does not already exist. Remove the source only after that succeeds.
+	// This supports regular files; directories and symlinks are deliberately
+	// unsupported rather than risking clobber or following a link.
+	sourceInfo, err := sourceEntry.root.Lstat(sourceRel)
+	if err != nil {
 		return "", "", err
 	}
-	if _, err := destinationEntry.root.Lstat(destinationRel); err == nil {
-		return "", "", errors.New("destination already exists")
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return "", "", err
+	if !sourceInfo.Mode().IsRegular() {
+		return "", "", errors.New("workspace_move supports regular files only")
 	}
-	if err := sourceEntry.root.Rename(sourceRel, destinationRel); err != nil {
-		return "", "", err
+	if err := sourceEntry.root.Link(sourceRel, destinationRel); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return "", "", errors.New("destination already exists")
+		}
+		return "", "", fmt.Errorf("create no-replace hard link: %w", err)
+	}
+	// This is intentionally not marketed as a transaction: after a crash or
+	// a source-removal failure both names may remain. In that situation the
+	// caller must reconcile explicitly rather than blindly repeating a move.
+	if err := sourceEntry.root.Remove(sourceRel); err != nil {
+		return "", "", fmt.Errorf("destination created but source removal failed; inspect both paths before retrying: %w", err)
 	}
 	return sourceAbs, destinationAbs, nil
 }
