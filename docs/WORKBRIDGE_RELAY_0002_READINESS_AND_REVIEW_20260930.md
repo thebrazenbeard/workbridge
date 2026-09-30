@@ -125,3 +125,27 @@ Draft PR branch revision rather than an ephemeral merge ref.
 
 This identity check is a CI provenance requirement, not a claim that
 the deployed 0001 package uses a newly built 0002 binary.
+
+## Additional streamed-SPK verifier review (source-only hardening)
+
+The SPK verifier now enforces per-member count, size and cumulative declared
+uncompressed-byte budgets **on each tar header before requesting the next**,
+rather than scanning all tar headers first and applying the cumulative budget
+only during extraction. It rejects noncanonical path spellings (such as
+repeated separators or embedded dot segments) as well as traversal. A
+regression test instruments header requests and asserts that an aggregate
+budget violation stops scanning at that member, without advancing to the
+next. This change affects repository verification/tests, not the installed
+NAS package, runtime binary, permissions, or on-device service.
+
+> HOSTILE REVIEWER: tarfile still parses PAX/metadata and may internally
+> decompress input while looking for the next header. Declared-size checks
+> do not establish a mathematically strict bound on all parsing costs.
+
+ACCEPTED. The 48 MiB compressed-SPK limit, maximum 64 members, 32 MiB
+single-member size, 64 MiB total declared payload budget and streaming
+admission reduce common archive-bomb exposure; they do not qualify
+arbitrary hostile tar processing as memory-safe on the DS216. Verification
+runs on a separate builder, **never inside the 512 MiB NAS service**.
+An external archive must not be accepted solely on its own embedded
+manifest or a self-asserted SHA.

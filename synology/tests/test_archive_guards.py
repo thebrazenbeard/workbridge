@@ -136,6 +136,61 @@ class RelayArchiveGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"member count limit"):
                 verifier().read_archive(archive)
 
+    def test_verifier_enforces_aggregate_budget_before_third_header(self):
+        # On highly compressible tarballs, walking every header before checking
+        # total decompressed bytes is itself a potential resource exhaustion.
+        mod=verifier()
+        buf=io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for i in range(3):
+                info=tarfile.TarInfo(f"file-{i}")
+                info.size=8
+                tar.addfile(info,io.BytesIO(b"x"*8))
+        buf.seek(0)
+        class CountedArchive:
+            def __init__(self, inner):
+                self.inner=inner
+                self.headers_read=0
+            def next(self):
+                self.headers_read+=1
+                return self.inner.next()
+            def extractfile(self, member):
+                return self.inner.extractfile(member)
+        with tarfile.open(fileobj=buf, mode="r:") as archive:
+            counted=CountedArchive(archive)
+            with patch.object(mod,"MAX_ARCHIVE_TOTAL_BYTES",12):
+                with self.assertRaisesRegex(ValueError,"uncompressed byte limit"):
+                    mod.read_archive(counted)
+            self.assertEqual(counted.headers_read,2,
+                             "verifier read ahead past aggregate-size violation")
+
+    def test_verifier_rejects_noncanonical_tar_paths(self):
+        mod=verifier()
+        for name in ("folder//file", "./relative", "dir/./file"):
+            with self.subTest(name=name):
+                buf=io.BytesIO()
+                with tarfile.open(fileobj=buf, mode="w") as tar:
+                    info=tarfile.TarInfo(name)
+                    info.size=1
+                    tar.addfile(info,io.BytesIO(b"x"))
+                buf.seek(0)
+                with tarfile.open(fileobj=buf,mode="r:") as archive:
+                    with self.assertRaisesRegex(ValueError,"noncanonical"):
+                        mod.read_archive(archive)
+
+    def test_verifier_rejects_unsorted_members_before_payloads(self):
+        mod=verifier()
+        buf=io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            for name in ("z", "a"):
+                info=tarfile.TarInfo(name)
+                info.size=1
+                tar.addfile(info,io.BytesIO(b"x"))
+        buf.seek(0)
+        with tarfile.open(fileobj=buf,mode="r:") as archive:
+            with self.assertRaisesRegex(ValueError,"deterministically sorted"):
+                mod.read_archive(archive)
+
     def test_verifier_rejects_non_arm_binary(self):
         with self.assertRaisesRegex(ValueError,"not ELF"):
             verifier().require_armv7_elf(b"not-elf","candidate")

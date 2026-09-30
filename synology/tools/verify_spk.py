@@ -24,45 +24,52 @@ def sha256(data: bytes) -> str:
 
 
 def read_archive(archive: tarfile.TarFile) -> tuple[dict[str, bytes], dict[str, int]]:
-    # Stream membership validation instead of getmembers(), which would
-    # allocate an unbounded list for an attacker-supplied tar archive.
-    members = []
+    # Validate each header BEFORE tarfile seeks to the next member. A
+    # collect-all-members pass can decompress a huge archive before aggregate
+    # quotas are applied, even when individual member headers look acceptable.
+    payloads: dict[str, bytes] = {}
+    modes: dict[str, int] = {}
+    aggregate_bytes = 0
+    previous_name: str | None = None
     while True:
         member = archive.next()
         if member is None:
             break
-        if len(members) >= MAX_ARCHIVE_MEMBERS:
+        if len(payloads) >= MAX_ARCHIVE_MEMBERS:
             raise ValueError("SPK archive exceeds member count limit")
-        if member.size < 0 or member.size > MAX_ARCHIVE_MEMBER_BYTES:
-            raise ValueError(f"SPK archive member exceeds byte limit: {member.name}")
-        members.append(member)
-    names = [member.name for member in members]
-    if names != sorted(names):
-        raise ValueError("archive entries are not deterministically sorted")
-    if len(names) != len(set(names)):
-        raise ValueError("archive contains duplicate members")
-
-    payloads: dict[str, bytes] = {}
-    modes: dict[str, int] = {}
-    aggregate_bytes = 0
-    for member in members:
         if member.size < 0 or member.size > MAX_ARCHIVE_MEMBER_BYTES:
             raise ValueError(f"SPK archive member exceeds byte limit: {member.name}")
         aggregate_bytes += member.size
         if aggregate_bytes > MAX_ARCHIVE_TOTAL_BYTES:
             raise ValueError("SPK archive exceeds uncompressed byte limit")
+
+        # Both archives are created by the deterministic USTAR packager.
+        # Reject alternate spellings of a path that could alias the same
+        # extraction destination (including '.' and duplicate separators).
         path = PurePosixPath(member.name)
-        if path.is_absolute() or ".." in path.parts:
-            raise ValueError(f"unsafe archive path: {member.name}")
+        if (path.is_absolute() or ".." in path.parts or
+                path.as_posix() != member.name):
+            raise ValueError(f"unsafe archive path or noncanonical spelling: {member.name}")
+        if previous_name is not None:
+            if member.name == previous_name or member.name in payloads:
+                raise ValueError("archive contains duplicate members")
+            if member.name < previous_name:
+                raise ValueError("archive entries are not deterministically sorted")
         if not member.isfile():
             raise ValueError(f"non-regular archive member: {member.name}")
-        if member.uid != 0 or member.gid != 0 or member.mtime != 0 or member.uname or member.gname:
+        if (member.uid != 0 or member.gid != 0 or member.mtime != 0 or
+                member.uname or member.gname):
             raise ValueError(f"nondeterministic archive metadata: {member.name}")
+
         fileobj = archive.extractfile(member)
         if fileobj is None:
             raise ValueError(f"missing archive payload: {member.name}")
-        payloads[member.name] = fileobj.read()
+        data = fileobj.read(member.size + 1)
+        if len(data) != member.size:
+            raise ValueError(f"truncated archive member: {member.name}")
+        payloads[member.name] = data
         modes[member.name] = member.mode
+        previous_name = member.name
     return payloads, modes
 
 
