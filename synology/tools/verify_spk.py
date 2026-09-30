@@ -116,6 +116,10 @@ def main() -> int:
         "groupname": "WorkBridgeRelay",
     }:
         raise ValueError("package privilege contract mismatch")
+    unit = outer["conf/systemd/pkguser-workbridgerelay.service"].decode("utf-8")
+    for required in ("Environment=GOMEMLIMIT=96MiB", "Environment=GOGC=75", "Environment=GOMAXPROCS=1"):
+        if required not in unit:
+            raise ValueError(f"DS216 service Go runtime budget missing {required}")
 
     with tarfile.open(fileobj=io.BytesIO(outer["package.tgz"]), mode="r:gz") as inner_archive:
         inner, inner_modes = read_archive(inner_archive)
@@ -167,6 +171,15 @@ def main() -> int:
         raise ValueError("default process execution must remain disabled")
     if config.get("http", {}).get("listen") != "127.0.0.1:8765":
         raise ValueError("default backend must bind loopback only")
+    limits = config.get("limits", {})
+    if limits.get("max_read_bytes", 2**32) > 524288 or limits.get("max_write_bytes", 2**32) > 524288:
+        raise ValueError("DS216: default text transfer exceeds 512 KiB")
+    if limits.get("max_directory_entries", 2**32) > 256:
+        raise ValueError("DS216: default directory listing budget too large")
+    proc = config.get("process", {})
+    if proc.get("max_concurrent") != 1 or proc.get("max_output_bytes", 2**32) > 262144:
+        raise ValueError("DS216: default process concurrency/output budget mismatch")
+
 
     launcher = inner["bin/run-workbridge-relay.sh"].decode("utf-8")
     if "--mcp.command" not in launcher or "--mcp.server-url" in launcher:
@@ -177,6 +190,10 @@ def main() -> int:
         raise ValueError("health URL must go to package-private file")
     if "file:$API_KEY_FILE" not in launcher:
         raise ValueError("runtime secret must be file-referenced")
+    for required in ('--control-plane.max-inflight "4"', '--mcp.max-concurrent-requests "1"'):
+        if required not in launcher:
+            raise ValueError(f"DS216: missing low-resource tunnel bound {required}")
+
     if "shares/" in launcher or "Media" in launcher:
         raise ValueError("relay launcher must not select an arbitrary NAS share")
 

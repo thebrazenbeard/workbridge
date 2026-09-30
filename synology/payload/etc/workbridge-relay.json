@@ -3,18 +3,18 @@
   "read_roots": [],
   "write_roots": [],
   "limits": {
-    "max_read_bytes": 8388608,
-    "max_write_bytes": 8388608,
-    "max_directory_entries": 10000
+    "max_read_bytes": 524288,
+    "max_write_bytes": 524288,
+    "max_directory_entries": 256
   },
   "process": {
     "enabled": false,
     "allowed_executables": [],
     "working_roots": [],
-    "max_runtime_seconds": 60,
-    "max_output_bytes": 1048576,
-    "max_args": 64,
-    "max_concurrent": 4
+    "max_runtime_seconds": 30,
+    "max_output_bytes": 262144,
+    "max_args": 32,
+    "max_concurrent": 1
   },
   "http": {
     "listen": "127.0.0.1:8765",

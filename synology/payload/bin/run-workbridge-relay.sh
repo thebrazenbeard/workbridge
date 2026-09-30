@@ -37,5 +37,7 @@ exec "$TUNNEL" run \
     --control-plane.tunnel-id "$TUNNEL_ID" \
     --control-plane.api-key "file:$API_KEY_FILE" \
     --mcp.command "$MCP_COMMAND" \
+    --control-plane.max-inflight "4" \
+    --mcp.max-concurrent-requests "1" \
     --health.listen-addr "127.0.0.1:0" \
     --health.url-file "$HEALTH_URL_FILE"
