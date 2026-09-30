@@ -26,6 +26,15 @@ https://help.synology.com/developer-guide/appendix/platarchs.html
 Pinned OpenAI tunnel-client commit a390c168ff1b2d14e73a95991c186c6aba3ff5a0 defines both concurrency flags in pkg/runtimeconfig/config.go and uses exec.Command without setting Cmd.Env for the stdio child (pkg/mcpclient/stdio_command.go). Go documents soft GC targets and GOMAXPROCS at https://pkg.go.dev/runtime#hdr-Environment_Variables.
 ARMv7 source build: CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7; CI checks ELF32/ARM, binary SHA256 pin, SPK archive and tests.
 
+## Lightweight operator resource snapshot
+The read-only package doctor reads /proc/meminfo and prints
+memory_total_kib and memory_available_kib. If the kernel does not expose
+MemAvailable, the result is explicitly unknown instead of a made-up
+estimate. This output is a snapshot of NAS memory, not measured Go
+RSS, peak consumption or a safety qualification. The operator can also
+inspect DSM Resource Monitor and process-specific memory usage after
+separate installation approval.
+
 ## Hostile self-review
 OBJECTION (ACCEPTED): A 96 MiB soft target does not prove the NAS fits 512 MB RAM. TLS, Go stacks, page cache, DSM services and other packages can increase RSS or trigger OOM. Source tests cannot prove runtime consumption.
 RESPONSE: After an explicitly authorized install, inspect measured process RSS/peak, swap use, DSM memory pressure, CPU idle and bursts, disk impact and OOM logs while running real MCP traffic. Prefer reducing load or disabling this optional relay if DSM is unstable. Do not assume DSM supports cgroup memory limits until proven on device.

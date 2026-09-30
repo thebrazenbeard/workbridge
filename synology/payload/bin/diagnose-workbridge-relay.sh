@@ -8,6 +8,22 @@ HEALTH_URL_FILE="$VAR/health-url"
 WORKBRIDGE="$ROOT/target/bin/workbridge-mcp"
 TUNNEL="$ROOT/target/bin/tunnel-client-runtime"
 CONFIG="$VAR/workbridge-relay.json"
+# DSM armada38x kernels may omit MemAvailable; report unknown rather than guess.
+MEMINFO_FILE=${WORKBRIDGE_RELAY_MEMINFO_FILE:-/proc/meminfo}
+MEM_TOTAL_KIB=unknown
+MEM_AVAILABLE_KIB=unknown
+if [ -r "$MEMINFO_FILE" ]; then
+    while read -r key value unit extra; do
+        case "$key" in
+            MemTotal:)
+                case "$value" in ''|*[!0-9]*) ;; *) MEM_TOTAL_KIB=$value ;; esac ;;
+            MemAvailable:)
+                case "$value" in ''|*[!0-9]*) ;; *) MEM_AVAILABLE_KIB=$value ;; esac ;;
+        esac
+    done < "$MEMINFO_FILE"
+fi
+printf 'memory_total_kib=%s\n' "$MEM_TOTAL_KIB"
+printf 'memory_available_kib=%s\n' "$MEM_AVAILABLE_KIB"
 
 if [ ! -x "$WORKBRIDGE" ] || [ ! -x "$TUNNEL" ]; then
     printf '%s\n' 'runtime=missing_binary'

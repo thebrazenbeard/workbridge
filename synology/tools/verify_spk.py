@@ -198,6 +198,8 @@ def main() -> int:
         raise ValueError("relay launcher must not select an arbitrary NAS share")
 
     doctor = inner["bin/diagnose-workbridge-relay.sh"].decode("utf-8")
+    if "MemAvailable:" not in doctor or "memory_available_kib=" not in doctor:
+        raise ValueError("DS216 resource snapshot diagnostic missing")
     if "readyz" not in doctor or "healthz" not in doctor or "mcp=not_independently_verified" not in doctor:
         raise ValueError("operator doctor lacks readiness/claim distinctions")
     if not inner["third_party/openai-tunnel-client-LICENSE"].strip():

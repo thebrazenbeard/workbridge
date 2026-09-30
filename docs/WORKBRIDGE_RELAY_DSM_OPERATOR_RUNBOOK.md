@@ -25,7 +25,7 @@ Preserve the operator's existing config on upgrade. Do not auto-grant a share us
 
 ## Post-install verification gates (not yet performed)
 1. Observe real DSM Package Center status and synosystemctl status for pkguser-workbridgerelay.service.
-2. As the installed package user, run /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh. It distinguishes missing files, tunnel process health (/healthz), and ready tunnel (/readyz); output deliberately never reports the secret values.
+2. As the installed package user, run /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh. It prints MemTotal and MemAvailable snapshots if available (otherwise unknown) before health checks; do not treat them as process RSS or memory headroom proof. It distinguishes missing files, tunnel process health (/healthz), and ready tunnel (/readyz); output deliberately never reports the secret values.
 3. Validate the dedicated tunnel in its provider's control plane, then observe authenticated MCP initialize/tools/list/tool-call from the exact selected ChatGPT connector. /readyz does not prove authorized ChatGPT access.
 4. With no roots configured, confirm only a bounded health tool is registered and filesystem tool calls cannot proceed. After separately authorized grants, check in-root paths succeed, out-of-root paths fail, writes are absent unless specifically granted, and process_run remains absent.
 5. Test DSM controlled stop/start and post-upgrade return of service only after authorizing an isolated maintenance window, verifying no second active process owns the tunnel ID and preserving the previously trusted service route.

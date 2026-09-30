@@ -25,6 +25,7 @@ class DoctorBehaviorTests(unittest.TestCase):
         (self.root / "var/runtime-api-key").write_text("secret-should-never-print\n")
         (self.root / "var/health-url").write_text("http://127.0.0.1:24816\n")
         (self.root / "fakebin").mkdir()
+        (self.root / "meminfo").write_text("MemTotal: 493200 kB\nMemAvailable: 76200 kB\n")
 
     def run_doctor(self, curl_script):
         curl = self.root / "fakebin/curl"
@@ -32,6 +33,7 @@ class DoctorBehaviorTests(unittest.TestCase):
         curl.chmod(0o700)
         env = dict(os.environ, WORKBRIDGE_RELAY_ROOT=str(self.root),
                    SYNOPKG_PKGVAR=str(self.root / "var"),
+                   WORKBRIDGE_RELAY_MEMINFO_FILE=str(self.root / "meminfo"),
                    PATH=str(self.root / "fakebin")+os.pathsep+os.environ["PATH"])
         p = subprocess.run(["sh", str(DOCTOR)], capture_output=True,
                            text=True, env=env, timeout=5)
@@ -43,6 +45,17 @@ class DoctorBehaviorTests(unittest.TestCase):
         self.assertEqual(0,p.returncode,p.stdout+p.stderr)
         self.assertIn("tunnel=ready",p.stdout)
         self.assertIn("mcp=not_independently_verified",p.stdout)
+
+    def test_resource_snapshot_is_a_measurement_not_total_hardware(self):
+        p=self.run_doctor("exit 0")
+        self.assertIn("memory_total_kib=493200",p.stdout)
+        self.assertIn("memory_available_kib=76200",p.stdout)
+        self.assertNotIn("secret-should-never-print",p.stdout)
+
+    def test_missing_memavailable_reports_unknown(self):
+        (self.root/"meminfo").write_text("MemTotal: 493200 kB\nMemFree: 800 kB\n")
+        p=self.run_doctor("exit 0")
+        self.assertIn("memory_available_kib=unknown",p.stdout)
 
     def test_pending_provider_readiness(self):
         p = self.run_doctor('case "$*" in *readyz*) exit 22 ;; *) exit 0 ;; esac')

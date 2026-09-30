@@ -30,7 +30,9 @@ The included operator diagnostic runs on installed DSM:
     /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh
 
 It distinguishes healthy/ready from actual MCP qualification; credentials
-are never printed. The tunnel listener binds an ephemeral loopback port,
+are never printed. On DSM it also reports MemTotal and MemAvailable
+in KiB when the kernel exposes them, otherwise reports unknown. These
+snapshots do not establish process RSS or rule out memory pressure. The tunnel listener binds an ephemeral loopback port,
 records its address in a private package file, and avoids fixed-port
 collisions. One active stdio tunnel-client per unique tunnel ID is required;
 do not reuse the existing Lappy/workstation tunnel identity.
