@@ -16,7 +16,19 @@ fail() {
     exit 1
 }
 
-[ ! -L "$VAR" ] || fail "package state directory is a symlink"
+if [ -L "$VAR" ]; then
+    # DSM 7 intentionally links /var/packages/PKG/var to @appdata/PKG.
+    # Admit ONLY the DSM package-private destination, not arbitrary symlinks.
+    RESOLVED_VAR=$(readlink -f "$VAR") || fail "package state link cannot be resolved"
+    EXPECTED_VOL=
+    if [ -n "${SYNOPKG_PKGDEST_VOL:-}" ]; then
+        EXPECTED_VOL=$(readlink -f "$SYNOPKG_PKGDEST_VOL/@appdata/WorkBridgeRelay" 2>/dev/null || true)
+    fi
+    if [ "$RESOLVED_VAR" != "/usr/local/packages/@appdata/WorkBridgeRelay" ] &&
+       { [ -z "$EXPECTED_VOL" ] || [ "$RESOLVED_VAR" != "$EXPECTED_VOL" ]; }; then
+        fail "package state link points outside DSM package appdata"
+    fi
+fi
 if [ -e "$VAR" ]; then
     [ -d "$VAR" ] || fail "package state path is not a directory"
 fi

@@ -82,6 +82,32 @@ class InstallerLifecycleTests(unittest.TestCase):
                          (self.target/"etc/workbridge-relay.json").read_text())
         self.assertEqual(stat.S_IMODE((self.var/"workbridge-relay.json").stat().st_mode),0o600)
 
+    def test_dsm7_var_symlink_to_private_appdata_is_accepted(self):
+        volume=self.root/"volume1"
+        private=volume/"@appdata"/"WorkBridgeRelay"
+        private.mkdir(parents=True)
+        self.var.symlink_to(private,target_is_directory=True)
+        env={"SYNOPKG_PKGDEST_VOL":str(volume)}
+        result=self.run_script(override_env=env)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual((private/"tunnel-id").read_text().strip(),TUNNEL_ID)
+        self.assertEqual(stat.S_IMODE(private.stat().st_mode),0o700)
+        custom='{"schema":"operator"}\n'
+        (private/"workbridge-relay.json").write_text(custom)
+        result=self.run_script(name="postupgrade",wizard=False,override_env=env)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual((private/"workbridge-relay.json").read_text(),custom)
+
+    def test_dsm7_var_symlink_to_other_appdata_is_rejected(self):
+        volume=self.root/"volume1"
+        outside=volume/"@appdata"/"SomeOtherPackage"
+        outside.mkdir(parents=True)
+        self.var.symlink_to(outside,target_is_directory=True)
+        result=self.run_script(override_env={"SYNOPKG_PKGDEST_VOL":str(volume)})
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn("outside DSM package appdata",result.stderr)
+        self.assertEqual(list(outside.iterdir()),[])
+
     def test_rejects_state_directory_symlink(self):
         outside=self.root/"outside"
         outside.mkdir()
