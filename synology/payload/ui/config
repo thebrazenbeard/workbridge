@@ -1,0 +1,12 @@
+{
+  ".url": {
+    "com.workbridge.WorkBridgeRelay": {
+      "type": "url",
+      "icon": "images/workbridge_{0}.png",
+      "title": "WorkBridgeRelay",
+      "desc": "Outbound WorkBridge MCP relay",
+      "url": "3rdparty/WorkBridgeRelay/index.html",
+      "allUsers": false
+    }
+  }
+}
