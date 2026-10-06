@@ -165,7 +165,7 @@ class RelayPackageContractTests(unittest.TestCase):
     def test_pinned_components(self):
         bindings=json.loads((SPK/"component-bindings.json").read_text())
         self.assertEqual(bindings["schema"],"WORKBRIDGE_RELAY_BINDINGS_V1")
-        self.assertEqual(bindings["package"]["id"],PKG)
+        self.assertEqual(bindings["package"]["id"],PKG)\n        self.assertEqual(bindings["package"]["version"],"0.1.0-0004")
         self.assertEqual(bindings["workbridge_mcp"]["repository"],
                          "thebrazenbeard/workbridge")
         self.assertEqual(bindings["workbridge_mcp"]["qualified_binary_sha256"],
