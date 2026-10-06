@@ -14,7 +14,7 @@ class RelayPackageContractTests(unittest.TestCase):
     def test_independent_dsm_package_identity(self):
         info = (SPK / "spk/INFO").read_text()
         self.assertIn('package="WorkBridgeRelay"', info)
-        self.assertIn('version="0.1.0-0003"', info)
+        self.assertIn('version="0.1.0-0004"', info)
         self.assertIn('arch="armada38x"', info)
         self.assertIn('os_min_ver="7.2-72806"', info)
         self.assertNotIn("Media", info)
