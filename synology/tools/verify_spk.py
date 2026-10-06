@@ -155,6 +155,10 @@ def main() -> int:
         if required not in info:
             raise ValueError(f"INFO contract missing {required}")
 
+    for required in ('dsmuidir="ui"', 'dsmappname="com.workbridge.WorkBridgeRelay"'):
+        if required not in info:
+            raise ValueError(f"INFO DSM GUI contract missing {required}")
+
     resource = json.loads(outer["conf/resource"])
     if resource != {"systemd-user-unit": {}}:
         raise ValueError("DSM resource contract must not grant NAS share access")
@@ -187,9 +191,36 @@ def main() -> int:
         "provenance/component-bindings.json",
         "third_party/openai-tunnel-client-LICENSE",
         "third_party/openai-tunnel-client-NOTICE",
+        "ui/config",
+        "ui/index.html",
+        *(f"ui/images/workbridge_{size}.png" for size in (16, 24, 32, 48, 64, 72, 256)),
     }
     if set(inner) != required_inner:
         raise ValueError(f"SPK inner member mismatch missing={sorted(required_inner-set(inner))} unexpected={sorted(set(inner)-required_inner)}")
+
+    ui = json.loads(inner["ui/config"])
+    if set(ui) != {".url"} or set(ui[".url"]) != {"com.workbridge.WorkBridgeRelay"}:
+        raise ValueError("DSM application config must expose exactly one WorkBridgeRelay route")
+    app = ui[".url"]["com.workbridge.WorkBridgeRelay"]
+    if app != {
+        "type": "url",
+        "icon": "images/workbridge_{0}.png",
+        "title": "WorkBridgeRelay",
+        "desc": "Outbound WorkBridge MCP relay",
+        "url": "3rdparty/WorkBridgeRelay/index.html",
+        "allUsers": False,
+    }:
+        raise ValueError("DSM application route contract mismatch")
+    if "://" in app["url"] or "127.0.0.1" in app["url"] or "8765" in app["url"]:
+        raise ValueError("DSM GUI must not expose a relay listener")
+    landing = inner["ui/index.html"].decode("utf-8")
+    if "<script" in landing.lower() or "runtime-api-key" in landing or "tunnel-id" in landing:
+        raise ValueError("DSM landing page must remain static and secret-blind")
+    for size in (16, 24, 32, 48, 64, 72, 256):
+        name = f"ui/images/workbridge_{size}.png"
+        image = inner[name]
+        if len(image) < 24 or image[:8] != b"\\x89PNG\\r\\n\\x1a\\n" or struct.unpack(">II", image[16:24]) != (size, size):
+            raise ValueError(f"DSM application icon {name} must be {size}x{size} PNG")
 
     for name in ("bin/workbridge-mcp", "bin/tunnel-client-runtime", "bin/run-workbridge-relay.sh", "bin/diagnose-workbridge-relay.sh"):
         if inner_modes[name] & 0o111 == 0:
@@ -202,13 +233,13 @@ def main() -> int:
     if provenance.get("schema") != "WORKBRIDGE_RELAY_RUNTIME_PROVENANCE_V1":
         raise ValueError("provenance schema mismatch")
     validate_provenance_head(provenance.get("source_head"), args.expected_source_head)
-    if provenance.get("package_version") != "0.1.0-0003":
+    if provenance.get("package_version") != "0.1.0-0004":
         raise ValueError("package version provenance mismatch")
     if provenance.get("package_arch") != "armada38x":
         raise ValueError("package architecture provenance mismatch")
     bindings = provenance["component_bindings"]
     require_trusted_bindings(bindings)
-    if bindings.get("package", {}).get("version") != "0.1.0-0003":
+    if bindings.get("package", {}).get("version") != "0.1.0-0004":
         raise ValueError("component version binding mismatch")
     if bindings["workbridge_mcp"]["commit"] != "0344d14551ea7e5a4309adb782e3f8b48c7b8b8c":
         raise ValueError("WorkBridge source binding mismatch")

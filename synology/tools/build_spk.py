@@ -9,17 +9,43 @@ import json
 import re
 import subprocess
 import stat
+import struct
 import tarfile
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE = ROOT / "synology"
-VERSION = "0.1.0-0003"
+VERSION = "0.1.0-0004"
 ARCH = "armada38x"
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def dsm_app_icon(size: int) -> bytes:
+    if size <= 0:
+        raise ValueError("icon size must be positive")
+    border = max(1, size // 16)
+    raw = bytearray()
+    for y in range(size):
+        raw.append(0)
+        for x in range(size):
+            edge = x < border or y < border or x >= size - border or y >= size - border
+            rgba = (20, 184, 166, 255) if edge else (17, 24, 39, 255)
+            raw.extend(rgba)
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(kind + data) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + chunk(b"IEND", b"")
+    )
 
 
 def add_tree(out: dict[str, tuple[bytes, int]], root: Path, prefix: str = "") -> None:
@@ -99,6 +125,8 @@ def main() -> int:
     inner: dict[str, tuple[bytes, int]] = {}
     add_tree(inner, PACKAGE / "payload")
     add_tree(inner, PACKAGE / "third_party", "third_party")
+    for size in (16, 24, 32, 48, 64, 72, 256):
+        inner[f"ui/images/workbridge_{size}.png"] = (dsm_app_icon(size), 0o644)
     inner["bin/workbridge-mcp"] = (workbridge, 0o755)
     inner["bin/tunnel-client-runtime"] = (tunnel, 0o755)
 
