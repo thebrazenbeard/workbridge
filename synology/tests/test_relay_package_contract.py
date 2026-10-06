@@ -29,6 +29,22 @@ class RelayPackageContractTests(unittest.TestCase):
             json.loads((SPK / "spk/conf/resource").read_text())
         )
 
+    def test_dsm_gui_route_is_package_owned_and_admin_only(self):
+        info = (SPK / "spk/INFO").read_text()
+        self.assertIn('dsmuidir="ui"', info)
+        self.assertIn('dsmappname="com.workbridge.WorkBridgeRelay"', info)
+        ui_path = SPK / "payload/ui/config"
+        self.assertTrue(ui_path.is_file(), "DSM desktop app config is missing")
+        ui = json.loads(ui_path.read_text())
+        app = ui[".url"]["com.workbridge.WorkBridgeRelay"]
+        self.assertEqual(app["type"], "url")
+        self.assertEqual(app["icon"], "images/workbridge_{0}.png")
+        self.assertEqual(app["url"], "3rdparty/WorkBridgeRelay/index.html")
+        self.assertIs(app["allUsers"], False)
+        self.assertTrue((SPK / "payload/ui/index.html").is_file())
+        self.assertNotIn("127.0.0.1", json.dumps(app))
+        self.assertNotIn("8765", json.dumps(app))
+
     def test_no_implicit_share_or_process_authority(self):
         cfg=json.loads((SPK / "payload/etc/workbridge-relay.json").read_text())
         self.assertEqual(cfg["schema"], "WORKBRIDGE_CONFIG_V1")
