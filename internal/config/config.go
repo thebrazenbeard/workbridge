@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -141,8 +142,8 @@ func (c *Config) Validate() error {
 	if c.HTTP.BearerTokenEnv != "" && !envNamePattern.MatchString(c.HTTP.BearerTokenEnv) {
 		return errors.New("http.bearer_token_env must be a valid environment variable name")
 	}
-	if c.Process.MaxRuntimeSeconds <= 0 || c.Process.MaxRuntimeSeconds > 900 {
-		return errors.New("process.max_runtime_seconds must be > 0 and <= 900")
+	if math.IsNaN(c.Process.MaxRuntimeSeconds) || math.IsInf(c.Process.MaxRuntimeSeconds, 0) || c.Process.MaxRuntimeSeconds <= 0 || c.Process.MaxRuntimeSeconds > 900 {
+		return errors.New("process.max_runtime_seconds must be finite, > 0 and <= 900")
 	}
 	if c.Process.MaxOutputBytes < 1 || c.Process.MaxOutputBytes > 16*1024*1024 {
 		return errors.New("process.max_output_bytes must be between 1 and 16777216")
