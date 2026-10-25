@@ -20,6 +20,10 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict:
     return result
 
 
+def _reject_nonfinite(value: str) -> None:
+    raise ValueError(f"non-JSON numeric constant: {value}")
+
+
 def _inspect_document(relative: str, value: object, findings: list[str]) -> None:
     def walk(obj: object, location: str) -> None:
         if isinstance(obj, dict):
@@ -66,10 +70,11 @@ def inspect_source(root: Path) -> list[str]:
             findings.append(f"{relative.as_posix()}: disguised executable asset forbidden")
 
     candidates = [root / ".vscode/tasks.json", root / ".vscode/settings.json"]
+    # Dist/node_modules files may still be force-tracked or opened directly;
+    # ignore only Git's own metadata, never a source directory name.
     candidates.extend(path for path in root.rglob("*")
                       if path.name.casefold().endswith(".code-workspace")
-                      and not any(part in (".git", "node_modules", "dist")
-                                  for part in path.relative_to(root).parts))
+                      and ".git" not in path.relative_to(root).parts)
     for path in candidates:
         relative = path.relative_to(root).as_posix()
         if path.is_symlink() or not path.is_file():
@@ -77,7 +82,8 @@ def inspect_source(root: Path) -> list[str]:
             continue
         try:
             document = json.loads(path.read_text(encoding="utf-8"),
-                                  object_pairs_hook=_unique_object)
+                                  object_pairs_hook=_unique_object,
+                                  parse_constant=_reject_nonfinite)
         except (OSError, UnicodeError, ValueError) as exc:
             findings.append(f"{relative}: unreadable or ambiguous editor configuration: {type(exc).__name__}")
             continue

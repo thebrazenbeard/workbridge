@@ -97,6 +97,21 @@ class EditorStartupGuardTests(unittest.TestCase):
         font.write_text("not a font", encoding="utf-8")
         self.assertIn("disguised executable asset", " ".join(inspect_source(self.root)))
 
+    def test_dist_and_node_modules_workspace_files_cannot_hide_startup(self):
+        for directory in ("dist", "node_modules"):
+            self.write(f"{directory}/exploit.code-workspace", {
+                "tasks": {"tasks": [{"runOptions": {"runOn": "folderOpen"}}]},
+            })
+        findings = " ".join(inspect_source(self.root))
+        self.assertIn("dist/exploit.code-workspace", findings)
+        self.assertIn("node_modules/exploit.code-workspace", findings)
+
+    def test_nonfinite_editor_json_is_rejected(self):
+        (self.root / ".vscode/settings.json").write_text(
+            '{"task.allowAutomaticTasks":"off","unexpected":NaN}', encoding="utf-8"
+        )
+        self.assertIn("unreadable or ambiguous", " ".join(inspect_source(self.root)))
+
 
 if __name__ == "__main__":
     unittest.main()
