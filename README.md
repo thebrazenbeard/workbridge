@@ -55,6 +55,23 @@ the package-user service. It does not grant any NAS share permission.
 
 Go 1.25.12 is required for WorkBridge MCP source.
 
+Before any build, run the no-dependency editor startup source guard and its
+regression tests:
+
+    python3 tools/check_editor_startup.py .
+    python3 -m unittest discover -s tools -p test_editor_startup_guard.py -v
+
+PR #9 removes a known disguised VS Code `folderOpen` loader. WorkBridge does
+not need automatically executed editor tasks for normal building or operation.
+Both CI workflows now run the source guard before compiling or packaging. A
+clean scan means only that these known tracked startup surfaces passed this
+check; it does not prove an older checkout never ran code, that a host was
+remediated, or that an alternate launcher cannot exist.
+The guard rejects nested VS Code workspace roots, case-insensitive aliases,
+disguised `.lkf` files, and all source-tree symlinks (including dangling
+ancestors). That conservative symlink restriction requires explicit review
+before introducing otherwise benign linked layouts.
+
     go mod verify
     go test ./...
     go vet ./...
