@@ -27,6 +27,13 @@ jobs:
           path: workbridge
           persist-credentials: false
 
+      - name: Reject automatic editor startup source before building
+        shell: bash
+        working-directory: workbridge
+        run: |
+          python3 tools/check_editor_startup.py .
+          python3 -m unittest discover -s tools -p test_editor_startup_guard.py -v
+
       - name: Set up WorkBridge Go toolchain
         uses: actions/setup-go@v6
         with:
