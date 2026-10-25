@@ -92,7 +92,8 @@ class EditorStartupGuardTests(unittest.TestCase):
 
     def test_casefold_font_directory_is_rejected(self):
         font = self.root / "PUBLIC" / "FONTS" / "Fa-Solid.LKF"
-        font.parent.mkdir(parents=True)
+        # On case-insensitive Windows this resolves to the setUp() directory.
+        font.parent.mkdir(parents=True, exist_ok=True)
         font.write_text("not a font", encoding="utf-8")
         self.assertIn("disguised executable asset", " ".join(inspect_source(self.root)))
 
