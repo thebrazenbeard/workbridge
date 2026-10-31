@@ -1,92 +1,68 @@
-# WorkBridge Relay for Synology
+# WorkBridge Relay — governed MCP access for Synology DSM
 
-This repository builds one standalone Synology DSM package:
-WorkBridgeRelay-0.1.0-0003-armada38x.spk.
+**A source-available Go MCP server and reproducible Synology package build for explicitly admitted local file and process capabilities.**
 
-Revision 0002 is a source-level upgrade candidate, not proof that the
-operator-installed 0001 package has changed. See
-docs/WORKBRIDGE_RELAY_0002_READINESS_AND_REVIEW_20260930.md
-for source binding, no-overwrite security limitations and upgrade gates.
+WorkBridge provides a bounded Model Context Protocol (MCP) runtime (`cmd/workbridge-mcp`) and the source, tests, and verification tooling for a standalone outbound-tunnel Synology package named **WorkBridgeRelay**. A deploying operator owns the NAS, selects authorized filesystem roots and executable grants, provisions the tunnel identity, and verifies the resulting installation. This repository does **not** enroll or install itself on a NAS.
 
-It packages the bounded WorkBridge MCP server and a pinned OpenAI Secure MCP
-Tunnel runtime. The tunnel connects outbound; there is no public inbound
-listener, Media share requirement, Vera runtime, or other application
-dependency. DS216 / DSM 7.2 / ARMv7 is the explicit first target.
+The current package manifest declares **WorkBridgeRelay 0.1.0-0003** for **DSM 7.2+ `armada38x` (ARMv7)**. Those are package targets, not evidence that every device, firmware version, or live connector has been qualified.
 
-The default synology/payload/etc/workbridge-relay.json has empty read/write
-roots and disabled process execution. The MCP health tool is available,
-but filesystem and process tools are not admitted until an operator grants
-their roots and capabilities in installed configuration and separately
-verifies package-user filesystem permissions. Changing config alone does
-not confer additional DSM filesystem permissions.
+## Implemented surfaces
 
-## Source directories
+| Component | Source | Verified scope |
+| --- | --- | --- |
+| MCP server | [`cmd/workbridge-mcp`](cmd/workbridge-mcp/), [`internal/bridge`](internal/bridge/) | Health plus conditionally registered workspace and process tools, under server configuration. |
+| File containment | [`internal/workspace`](internal/workspace/), [`internal/policy`](internal/policy/) | Configured root-relative filesystem operations using Go `os.Root`, bounded reads/writes and explicit overwrite rules. |
+| Process admission | [`internal/runner`](internal/runner/) | Disabled by default; when enabled, only named, SHA-256-pinned executable grants with bounded arguments, runtime, output, and working roots. |
+| DSM package | [`synology/spk`](synology/spk/), [`synology/payload`](synology/payload/) | Package-user lifecycle and outbound tunnel launch, install wizard, local diagnostics and no-authority initial configuration. |
+| Reproducible archive | [`synology/component-bindings.json`](synology/component-bindings.json), [`synology/tools`](synology/tools/) | Pinned ARMv7 components, deterministic package construction, hash checks and fail-closed SPK verification. |
 
-- synology/spk: DSM metadata, package-user privilege, systemd, lifecycle
-  scripts, and tunnel-credential install wizard.
-- synology/payload: outbound tunnel launcher and no-authority base config.
-- synology/component-bindings.json: exact ARMv7 binary/source pins.
-- synology/tools: deterministic SPK builder and fail-closed archive verifier.
-- synology/tests: package security, identity, and lifecycle tests.
-- cmd and internal: independent Go WorkBridge MCP runtime.
+WorkBridge does **not** offer unconstrained shell access, a public inbound listener, an all-files NAS browsing entitlement, or a general authorization/consent service. A model request, connector identity, health response, or matching file path does not itself grant protected host permissions.
 
-The included operator diagnostic runs on installed DSM:
+## Security defaults
 
-    /var/packages/WorkBridgeRelay/target/bin/diagnose-workbridge-relay.sh
+- The packaged [`workbridge-relay.json`](synology/payload/etc/workbridge-relay.json) starts with **empty read and write roots**, **process execution disabled**, and bounded request/output limits. Only the health tool is available until the operator explicitly admits additional capabilities.
+- The MCP server prefers **stdio**. Optional HTTP mode is loopback-only and requires a separately supplied bearer secret; a public or LAN listener is not an accepted configuration.
+- Filesystem operations are rooted and constrained by Go `os.Root`. The source documents remaining limits under hostile local administrators, mount/special-file behavior, and object-identity races; this is not formal filesystem isolation.
+- Process grants name an absolute executable path and expected digest. Repeated hashes reduce substitutions but do not cryptographically bind the final checked file to the OS execution handle. Run admitted executables from operator-controlled locations.
+- The Synology package uses a **package user** and an **outbound** MCP tunnel; it does not grant NAS share access by installation. Operator-selected roots still depend on actual package-user filesystem permissions.
+- Each concurrently active tunnel client must have its **own tunnel identity**. Reusing an existing active identity can cause connection conflicts; do not put a tunnel ID, API key, bearer token, or NAS credential in repository files or public logs.
 
-It distinguishes healthy/ready from actual MCP qualification; credentials
-are never printed. On DSM it also reports MemTotal and MemAvailable
-in KiB when the kernel exposes them, otherwise reports unknown. These
-snapshots do not establish process RSS or rule out memory pressure. The tunnel listener binds an ephemeral loopback port,
-records its address in a private package file, and avoids fixed-port
-collisions. One active stdio tunnel-client per unique tunnel ID is required;
-do not reuse the existing Lappy/workstation tunnel identity.
+Read the [security model](docs/SECURITY.md) and the [DSM operator runbook](docs/WORKBRIDGE_RELAY_DSM_OPERATOR_RUNBOOK.md) before a privileged deployment. The runbook contains some **historical 0002 package examples**: verify version, binding digests, and script flags against the current 0003 sources before using them. The package's diagnostic script reports health and selected resource observations, **not** proof of end-to-end authenticated MCP behavior.
 
-See docs/WORKBRIDGE_RELAY_DSM_OPERATOR_RUNBOOK.md for the exact operator-side installation, permissions and readiness gates.
-The read-only source-side NAS preflight is synology/tools/nas_preflight.sh;
-it requires an already-authorized NAS shell and does not install anything.
+## Source build and tests
 
+For the Go WorkBridge MCP server, use **Go 1.25.12**, the version pinned in [`go.mod`](go.mod). The separately pinned OpenAI tunnel-client component has its **own Go 1.27.0 build requirement** in the [component bindings](synology/component-bindings.json); it is not built by `go test ./...` here.
 
-The installer collects tunnel ID and runtime API key using DSM wizard
-fields, stores them under package-owned state with mode 0600, and starts
-the package-user service. It does not grant any NAS share permission.
+From a clean source checkout:
 
-## Build and verification
+```sh
+# Read-only source check for known disguised editor-startup execution surfaces.
+python3 tools/check_editor_startup.py .
+python3 -m unittest discover -s tools -p test_editor_startup_guard.py -v
 
-Go 1.25.12 is required for WorkBridge MCP source.
+# Go MCP server tests and static analysis (requires the pinned Go toolchain).
+go mod verify
+go test ./...
+go vet ./...
 
-Before any build, run the no-dependency editor startup source guard and its
-regression tests:
+# DSM package/archive, lifecycle, and NAS-preflight tests.
+python3 -m unittest discover -s synology/tests -v
+```
 
-    python3 tools/check_editor_startup.py .
-    python3 -m unittest discover -s tools -p test_editor_startup_guard.py -v
+The [SPK builder](synology/tools/build_spk.py) requires an **exact clean Git HEAD**, two separately built ARMv7 binaries, and binary SHA-256 values matching [`synology/component-bindings.json`](synology/component-bindings.json). It refuses substitutions and writes a deterministic candidate package; the [SPK verifier](synology/tools/verify_spk.py) checks archive structure and provenance. The package workflow compiles the pinned tunnel source with its reviewed ARMv7 portability transform. A passing build is **not** a live NAS installation, entitlement, tunnel pairing, or filesystem-permission probe.
 
-PR #9 removes a known disguised VS Code `folderOpen` loader. WorkBridge does
-not need automatically executed editor tasks for normal building or operation.
-Both CI workflows now run the source guard before compiling or packaging. A
-clean scan means only that these known tracked startup surfaces passed this
-check; it does not prove an older checkout never ran code, that a host was
-remediated, or that an alternate launcher cannot exist.
-The guard rejects nested VS Code workspace roots, case-insensitive aliases,
-disguised `.lkf` files, and all source-tree symlinks (including dangling
-ancestors). That conservative symlink restriction requires explicit review
-before introducing otherwise benign linked layouts.
+The read-only [`nas_preflight.sh`](synology/tools/nas_preflight.sh) is for an **already authorized DSM shell**. It does not install packages, grant permission, or create a connector. Operators must separately verify the package-user identity, tunnel readiness, disconnect/reconnect behavior, tool policy, and post-test health on their own device.
 
-    go mod verify
-    go test ./...
-    go vet ./...
-    CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -buildvcs=false -ldflags=-buildid= -o /tmp/workbridge-mcp-armv7 ./cmd/workbridge-mcp
-    python3 -m unittest discover -s synology/tests -v
+## Integration and boundaries
 
-The GitHub workflow at .github/workflows/workbridge-relay-spk.yml builds
-both pinned ARMv7 components and checks SHA-256 before creating and verifying
-the SPK. Its artifact is a candidate for operator review, not deployment
-evidence. The tunnel source is fixed at a specific upstream commit and
-the six-line ARMv7 portability transform is verified before build.
+The Go runtime is separately useful as a bounded MCP server, but the included Synology packaging scripts and pinned component manifest are **target-specific**; do not present this SPK as a universally compatible application. The [sample Go configuration](config.example.json) and the [package configuration](synology/payload/etc/workbridge-relay.json) use distinct deployment contexts. Adjust policy only after reviewing its real impact on host permissions.
 
-The builder rejects a replacement binary whose SHA-256 differs from
-synology/component-bindings.json. Do not treat an SPK source build as NAS
-installation, successful connector pairing, or live MCP behavior.
+This code does not implement host-owned immutable provider identity, cross-model consent transfer, a coherent external authorization decision service, or an automatic grant to perform effects. Higher-level hosts must authenticate the caller, bind provider and subject identity, evaluate consent and scope, and enforce each decision at the effect boundary.
 
-Original project terms are in LICENSE, third-party notices in
-THIRD_PARTY_NOTICES.md, historical donor evidence in docs/PROVENANCE.md.
+## Licensing and provenance
+
+Original project material is **source-available proprietary**, not generally open source; the [license](LICENSE) permits limited private noncommercial evaluation. [Commercial licensing](COMMERCIAL_LICENSE.md) requires a separate agreement. The OpenAI tunnel component is independently licensed and its [third-party notices](THIRD_PARTY_NOTICES.md) and [bundled license](synology/third_party/openai-tunnel-client-LICENSE) must be preserved. Do not infer that all other bundled assets have cleared redistribution rights from the presence of a root notice.
+
+Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md). The required legal acknowledgment is a contributor decision, not something a model or automated workflow can silently provide.
+
+For additional evidence and historical decisions, consult the [source provenance](docs/PROVENANCE.md) and [release readiness record](docs/WORKBRIDGE_RELAY_0002_READINESS_AND_REVIEW_20260930.md). These historical records do not establish current deployment.
