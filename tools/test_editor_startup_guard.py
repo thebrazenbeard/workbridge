@@ -26,6 +26,55 @@ class EditorStartupGuardTests(unittest.TestCase):
     def test_safe_editor_configuration_passes(self):
         self.assertEqual(inspect_source(self.root), [])
 
+    def test_manual_task_with_bom_jsonc_comments_and_trailing_commas_passes(self):
+        (self.root / ".vscode/tasks.json").write_text(
+            '\ufeff{ "version": "2.0.0", // manual tasks are permitted\n'
+            '  "tasks": [{"label": "manual", "type": "shell", "command": "echo", "args": ["ok",],},],}\n',
+            encoding="utf-8")
+        self.assertEqual(inspect_source(self.root), [])
+
+    def test_nested_windows_command_args_font_reference_rejected(self):
+        self.write(".vscode/tasks.json", {"tasks": [{
+            "label": "innocuous", "command": "echo",
+            "windows": {"command": "node", "args": [r".\\public\\fonts\\wrong.ttf"]}
+        }]})
+        self.assertIn("font asset", " ".join(inspect_source(self.root)))
+
+    def test_nested_os_override_folder_open_rejected(self):
+        self.write(".vscode/tasks.json", {"tasks": [{
+            "label": "manual", "runOptions": {"runOn": "default"},
+            "linux": {"runOptions": {"runOn": "folderOpen"}}
+        }]})
+        self.assertIn("folderOpen", " ".join(inspect_source(self.root)))
+
+    def test_disguised_ttf_rejected_even_without_editor_task(self):
+        (self.root / "public/fonts/fa-solid-600.ttf").write_text("function fakeFont() {}")
+        self.assertIn("invalid font file signature", " ".join(inspect_source(self.root)))
+
+    def test_disguised_woff2_rejected_even_without_editor_task(self):
+        (self.root / "public/fonts/custom.woff2").write_bytes(b"node")
+        self.assertIn("invalid font file signature", " ".join(inspect_source(self.root)))
+
+    def test_ttf_javascript_polyglot_with_allowed_magic_is_rejected(self):
+        # "true" is both a historical TrueType header and valid JavaScript.
+        (self.root / "public/fonts/fa-solid-600.ttf").write_bytes(b"true\n;dangerousCall();")
+        self.assertIn("unapproved content", " ".join(inspect_source(self.root)))
+
+    def test_woff_javascript_polyglot_with_allowed_magic_is_rejected(self):
+        (self.root / "public/fonts/evil.woff").write_bytes(b"wOFF=0;dangerousCall();")
+        self.assertIn("unapproved content", " ".join(inspect_source(self.root)))
+
+    def test_case_variant_public_fonts_path_does_not_bypass_validation(self):
+        font = self.root / "PUBLIC" / "FONTS" / "evil.ttf"
+        font.parent.mkdir(parents=True, exist_ok=True)
+        font.write_bytes(b"true\n;dangerousCall();")
+        self.assertIn("unapproved content", " ".join(inspect_source(self.root)))
+
+    def test_pretend_comment_or_comma_inside_string_does_not_bypass(self):
+        self.write(".vscode/tasks.json", {"tasks": [{"label": "http://a,b}",
+            "runOptions": {"runOn": "folderOpen"}}]})
+        self.assertIn("folderOpen", " ".join(inspect_source(self.root)))
+
     def test_folder_open_task_is_rejected(self):
         self.write(".vscode/tasks.json", {"version": "2.0.0", "tasks": [
             {"label": "startup", "runOptions": {"runOn": "folderOpen"},
@@ -35,6 +84,16 @@ class EditorStartupGuardTests(unittest.TestCase):
 
     def test_automatic_tasks_enabled_is_rejected(self):
         self.write(".vscode/settings.json", {"task.allowAutomaticTasks": True})
+        self.assertTrue(inspect_source(self.root))
+
+    def test_automatic_tasks_string_on_is_rejected(self):
+        self.write(".vscode/settings.json", {"task.allowAutomaticTasks": "on"})
+        self.assertTrue(inspect_source(self.root))
+
+    def test_workspace_automatic_tasks_string_on_is_rejected(self):
+        self.write("unsafe.code-workspace", {
+            "folders": [{"path": "."}], "task.allowAutomaticTasks": "on",
+        })
         self.assertTrue(inspect_source(self.root))
 
     def test_nested_settings_task_is_rejected(self):

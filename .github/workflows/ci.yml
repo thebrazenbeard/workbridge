@@ -22,6 +22,8 @@ jobs:
           python-version: '3.12'
       - run: python tools/check_editor_startup.py .
       - run: python -m unittest discover -s tools -p 'test_editor_startup_guard.py' -v
+      - run: python -O tools/check_editor_startup.py .
+      - run: python -O -m unittest discover -s tools -p 'test_editor_startup_guard.py' -v
       - uses: actions/setup-go@v6
         with:
           go-version: '1.25.12'

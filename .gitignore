@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.exe
 *.log
+.env
 workbridge-config.json
 branch_structure.json
 temp_auto_push.bat
