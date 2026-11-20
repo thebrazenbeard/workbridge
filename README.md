@@ -90,3 +90,9 @@ installation, successful connector pairing, or live MCP behavior.
 
 Original project terms are in LICENSE, third-party notices in
 THIRD_PARTY_NOTICES.md, historical donor evidence in docs/PROVENANCE.md.
+
+## Editor startup containment — tracked source (2026-11-20)
+
+The tracked `main` source formerly contained a concealed VS Code `folderOpen` task invoking obfuscated `.vscode/ini` through Node. The task list is now empty, `task.allowAutomaticTasks` is explicitly `"off"`, and the obfuscated file is removed from this source tree. Historical Git source remains for investigation.
+
+**Limits:** This is source-only containment, not proof that older checkouts, editor extensions, user/global settings, local credentials, or any previous host execution are safe. Do not execute historical suspect assets.
